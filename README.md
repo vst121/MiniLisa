@@ -168,4 +168,4 @@ Before a production deployment, complete the following controls:
 
 ## License
 
-No license file is currently included. Add the organization-approved license before distributing the project.
+This project is licensed under the [MIT License](https://opensource.org/license/mit/).
