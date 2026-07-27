@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # 1. FastAPI Application Service
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: procurement_ai_web
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=development
+      - DEBUG=true
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=procurement_user
+      - POSTGRES_PASSWORD=procurement_pass
+      - POSTGRES_DB=procurement_ai_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - EVENT_BUS_TYPE=redis
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-sk-proj-mock-key}
+      - LLM_MODEL=gpt-4o-mini
+      - LANGFUSE_HOST=http://langfuse:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./storage/uploads:/app/storage/uploads
+    restart: unless-stopped
+
+  # 2. PostgreSQL with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: procurement_ai_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=procurement_user
+      - POSTGRES_PASSWORD=procurement_pass
+      - POSTGRES_DB=procurement_ai_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U procurement_user -d procurement_ai_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # 3. Redis & Redis Streams Event Bus
+  redis:
+    image: redis:7-alpine
+    container_name: procurement_ai_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # 4. Langfuse LLM Observability
+  langfuse:
+    image: langfuse/langfuse:2
+    container_name: procurement_ai_langfuse
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://procurement_user:procurement_pass@postgres:5432/procurement_ai_db
+      - NEXTAUTH_SECRET=secret-langfuse-key-32chars-min
+      - SALT=salt-langfuse-key-32chars-min
+      - NEXTAUTH_URL=http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
