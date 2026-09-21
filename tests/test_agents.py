@@ -3,6 +3,7 @@ Unit tests for concrete LLM Agents.
 """
 
 import pytest
+
 from src.agents.base import AgentState
 from src.agents.impl.invoice_agent import InvoiceAgent
 from src.agents.impl.pricing_agent import PricingAgent
@@ -54,4 +55,7 @@ async def test_full_agent_pipeline_execution():
     assert res5.success is True
     assert "recommendation_result" in state.data
     rec_out = res5.output
-    assert rec_out["action"] in [RecommendationAction.APPROVE.value, RecommendationAction.NEEDS_HUMAN.value]
+    assert rec_out["action"] in [
+        RecommendationAction.APPROVE.value,
+        RecommendationAction.NEEDS_HUMAN.value,
+    ]

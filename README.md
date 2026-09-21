@@ -143,6 +143,16 @@ $env:DATABASE_URL="postgresql+asyncpg://user:password@host:5432/database"
 alembic upgrade head
 ```
 
+Back up PostgreSQL with `pg_dump` before migrations and validate restores in an isolated database:
+
+```powershell
+pg_dump --format=custom --file=backup.dump $env:DATABASE_URL
+createdb restore_check
+pg_restore --clean --if-exists --dbname=$env:RESTORE_CHECK_DATABASE backup.dump
+```
+
+Retention defaults are configurable through `INVOICE_RETENTION_DAYS`, `AUDIT_RETENTION_DAYS`, `UPLOAD_RETENTION_DAYS`, and `CHECKPOINT_RETENTION_DAYS`. Schedule cleanup jobs only after confirming legal and business retention requirements.
+
 ## Project layout
 
 ```text

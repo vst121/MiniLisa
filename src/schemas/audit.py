@@ -3,7 +3,8 @@ Audit Log Pydantic Schemas.
 """
 
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -13,5 +14,5 @@ class AuditLogResponse(BaseModel):
     entity_id: str
     event_name: str
     actor: str
-    details: Dict[str, Any]
+    details: dict[str, Any]
     timestamp: datetime

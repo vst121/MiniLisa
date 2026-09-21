@@ -4,11 +4,12 @@ Provides an abstract EventBus, an InMemoryEventBus for tests/local dev,
 and a RedisStreamsEventBus for production event-driven architecture.
 """
 
-from abc import ABC, abstractmethod
 import asyncio
 import json
 import logging
-from typing import Any, Callable, Coroutine, Dict, List, Optional
+from abc import ABC, abstractmethod
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 import redis.asyncio as redis
 
@@ -83,8 +84,8 @@ class InMemoryEventBus(EventBus):
     """In-Memory Event Bus for unit testing and simple single-process workflows."""
 
     def __init__(self) -> None:
-        self._handlers: Dict[str, List[EventHandler]] = {}
-        self.dead_letters: List[BaseEvent] = []
+        self._handlers: dict[str, list[EventHandler]] = {}
+        self.dead_letters: list[BaseEvent] = []
 
     async def publish(self, event: BaseEvent) -> None:
         logger.info(
@@ -109,15 +110,17 @@ class InMemoryEventBus(EventBus):
         if event_type not in self._handlers:
             self._handlers[event_type] = []
         self._handlers[event_type].append(handler)
-        logger.info(f"[InMemoryEventBus] Subscribed handler {handler.__name__} to event: {event_type}")
+        logger.info(
+            f"[InMemoryEventBus] Subscribed handler {handler.__name__} to event: {event_type}"
+        )
 
 
 class RedisStreamsEventBus(EventBus):
     """Production Redis Streams Event Bus."""
 
-    def __init__(self, redis_client: Optional[redis.Redis] = None) -> None:
+    def __init__(self, redis_client: redis.Redis | None = None) -> None:
         self._redis = redis_client or redis.from_url(settings.REDIS_URI, decode_responses=True)
-        self._handlers: Dict[str, List[EventHandler]] = {}
+        self._handlers: dict[str, list[EventHandler]] = {}
 
     async def publish(self, event: BaseEvent) -> None:
         stream_key = f"events:{event.event_type}"
@@ -193,7 +196,11 @@ class RedisStreamsEventBus(EventBus):
                     if error:
                         await self._redis.xadd(
                             f"dead-letter:{event_type}",
-                            {**values, "error": str(error), "dead_letter_reason": "handler_retries_exhausted"},
+                            {
+                                **values,
+                                "error": str(error),
+                                "dead_letter_reason": "handler_retries_exhausted",
+                            },
                         )
                         break
                 await self._redis.xack(stream_key, settings.REDIS_CONSUMER_GROUP, message_id)

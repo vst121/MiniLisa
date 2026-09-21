@@ -28,7 +28,9 @@ def test_invoice_extraction_schema() -> None:
         vat_amount=50.00,
         currency="USD",
         items=[
-            InvoiceItemSchema(description="Consulting", quantity=5, unit_price=100.0, total_price=500.0)
+            InvoiceItemSchema(
+                description="Consulting", quantity=5, unit_price=100.0, total_price=500.0
+            )
         ],
     )
     assert extraction.supplier_name == "Acme Corp"

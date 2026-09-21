@@ -4,7 +4,7 @@ Looks up supplier, risk score, payment history, and active status.
 """
 
 import time
-from typing import Optional
+
 from src.agents.base import AgentResult, AgentState, BaseAgent
 from src.domain.entities import RiskLevel
 from src.infrastructure.llm_client import LLMClient
@@ -18,7 +18,7 @@ class SupplierAgent(BaseAgent):
     role = "Supplier Intelligence Agent"
     system_prompt = SUPPLIER_AGENT_SYSTEM_PROMPT
 
-    def __init__(self, llm_client: Optional[LLMClient] = None) -> None:
+    def __init__(self, llm_client: LLMClient | None = None) -> None:
         tools = [SearchSupplierTool()]
         super().__init__(llm_client=llm_client, tools=tools)
 
@@ -60,7 +60,9 @@ class SupplierAgent(BaseAgent):
 
             duration = (time.perf_counter() - start_time) * 1000
             state.data["supplier_risk"] = supplier_risk.model_dump()
-            state.history.append({"agent": self.role, "status": "COMPLETED", "timestamp": time.time()})
+            state.history.append(
+                {"agent": self.role, "status": "COMPLETED", "timestamp": time.time()}
+            )
 
             return AgentResult(
                 success=True,

@@ -3,11 +3,11 @@ Domain Entities and Value Objects.
 Pure domain logic and core business models independent of persistence frameworks.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Dict, List, Optional
 import uuid
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
 
 
 class InvoiceStatus(str, Enum):
@@ -49,7 +49,7 @@ class InvoiceItem:
     quantity: float = 1.0
     unit_price: float = 0.0
     total_price: float = 0.0
-    item_code: Optional[str] = None
+    item_code: str | None = None
 
 
 @dataclass
@@ -58,18 +58,18 @@ class Invoice:
     file_name: str = ""
     file_path: str = ""
     status: InvoiceStatus = InvoiceStatus.UPLOADED
-    invoice_number: Optional[str] = None
-    invoice_date: Optional[str] = None
-    supplier_id: Optional[str] = None
-    supplier_name: Optional[str] = None
-    supplier_tax_id: Optional[str] = None
+    invoice_number: str | None = None
+    invoice_date: str | None = None
+    supplier_id: str | None = None
+    supplier_name: str | None = None
+    supplier_tax_id: str | None = None
     total_amount: float = 0.0
     vat_amount: float = 0.0
     currency: str = "USD"
     raw_text: str = ""
-    items: List[InvoiceItem] = field(default_factory=list)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    items: list[InvoiceItem] = field(default_factory=list)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def calculate_total_from_items(self) -> float:
         return sum(item.total_price for item in self.items)
@@ -80,14 +80,14 @@ class Supplier:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str = ""
     tax_id: str = ""
-    email: Optional[str] = None
+    email: str | None = None
     risk_score: float = 0.0  # 0.0 to 100.0 (higher means higher risk)
     risk_level: RiskLevel = RiskLevel.LOW
     rating: float = 5.0
     status: str = "ACTIVE"
     payment_terms: str = "NET_30"
-    embedding: Optional[List[float]] = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    embedding: list[float] | None = None
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -98,7 +98,7 @@ class PurchaseOrder:
     total_amount: float = 0.0
     currency: str = "USD"
     status: str = "OPEN"
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -109,7 +109,7 @@ class Recommendation:
     confidence_score: float = 0.0  # 0.0 to 1.0
     explanation: str = ""
     reasoning_summary: str = ""
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -119,8 +119,8 @@ class Approval:
     invoice_id: str = ""
     user_id: str = ""
     action_taken: RecommendationAction = RecommendationAction.APPROVE
-    comments: Optional[str] = None
-    approved_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    comments: str | None = None
+    approved_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -130,5 +130,5 @@ class AuditLog:
     entity_id: str = ""
     event_name: str = ""
     actor: str = "SYSTEM"
-    details: Dict[str, Any] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    details: dict[str, Any] = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))

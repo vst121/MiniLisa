@@ -4,7 +4,7 @@ Checks missing fields, total amounts, VAT calculations, and duplicate records us
 """
 
 import time
-from typing import Optional
+
 from src.agents.base import AgentResult, AgentState, BaseAgent
 from src.infrastructure.llm_client import LLMClient
 from src.prompts.templates import VALIDATION_AGENT_SYSTEM_PROMPT
@@ -17,7 +17,7 @@ class ValidationAgent(BaseAgent):
     role = "Validation Agent"
     system_prompt = VALIDATION_AGENT_SYSTEM_PROMPT
 
-    def __init__(self, llm_client: Optional[LLMClient] = None) -> None:
+    def __init__(self, llm_client: LLMClient | None = None) -> None:
         tools = [CalculateVATTool()]
         super().__init__(llm_client=llm_client, tools=tools)
 
@@ -70,7 +70,9 @@ class ValidationAgent(BaseAgent):
 
             duration = (time.perf_counter() - start_time) * 1000
             state.data["validation_result"] = validation_res.model_dump()
-            state.history.append({"agent": self.role, "status": "COMPLETED", "timestamp": time.time()})
+            state.history.append(
+                {"agent": self.role, "status": "COMPLETED", "timestamp": time.time()}
+            )
 
             return AgentResult(
                 success=True,

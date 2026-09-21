@@ -2,8 +2,9 @@
 Unit tests for configuration settings.
 """
 
-from src.config.settings import settings, Settings
 from pydantic import ValidationError
+
+from src.config.settings import Settings, settings
 
 
 def test_settings_initialization() -> None:

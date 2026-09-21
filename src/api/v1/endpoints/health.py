@@ -3,6 +3,7 @@ Health Check API Endpoint.
 """
 
 from fastapi import APIRouter
+
 from src.config.settings import settings
 from src.infrastructure.llm_client import LLMClient
 

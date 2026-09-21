@@ -3,10 +3,11 @@ Unit and integration tests for Workflow Engine and Event Bus.
 """
 
 import pytest
+
+from src.config.settings import settings
 from src.domain.entities import InvoiceStatus
 from src.domain.events import HumanApprovedEvent, InvoiceUploadedEvent
 from src.events.event_bus import InMemoryEventBus
-from src.config.settings import settings
 from src.workflows.workflow_engine import WorkflowEngine
 from tests.fakes import DeterministicLLMClient
 

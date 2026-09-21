@@ -50,8 +50,8 @@ Prepare the application for a safe production handoff and future deployment whil
 
 - Use Alembic migrations for schema changes instead of relying on `create_all()` in startup.
 - Apply the checked-in initial revision with `alembic upgrade head` before production startup.
-- Add backup and restore validation procedures.
-- Define retention policies for invoices, audit logs, and uploaded artifacts.
+- Back up PostgreSQL with `pg_dump` before migrations and validate restores in an isolated database.
+- Configure retention policies for invoices, audit logs, uploaded artifacts, and workflow checkpoints.
 
 ### 6. Deployment topology
 

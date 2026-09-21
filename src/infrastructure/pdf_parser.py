@@ -3,10 +3,11 @@ PDF Document Parser Module.
 Combines PyMuPDF (fitz) for fast text & metadata extraction with pdfplumber for structured table extraction.
 """
 
-from dataclasses import dataclass, field
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 import fitz  # PyMuPDF
 import pdfplumber
 
@@ -17,8 +18,8 @@ logger = logging.getLogger(__name__)
 class ExtractedDocument:
     raw_text: str
     page_count: int
-    tables: List[List[List[Optional[str]]]] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    tables: list[list[list[str | None]]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class DocumentParser:
@@ -34,9 +35,9 @@ class DocumentParser:
         logger.info(f"[DocumentParser] Parsing PDF document: {path.name}")
 
         # 1. PyMuPDF fast text extraction
-        full_text_pages: List[str] = []
+        full_text_pages: list[str] = []
         page_count = 0
-        doc_metadata: Dict[str, Any] = {}
+        doc_metadata: dict[str, Any] = {}
 
         try:
             doc = fitz.open(str(path))
@@ -58,7 +59,7 @@ class DocumentParser:
         raw_text = "\n--- PAGE BREAK ---\n".join(full_text_pages)
 
         # 2. pdfplumber structured table extraction
-        extracted_tables: List[List[List[Optional[str]]]] = []
+        extracted_tables: list[list[list[str | None]]] = []
         try:
             with pdfplumber.open(str(path)) as pdf:
                 for page in pdf.pages:

@@ -5,7 +5,9 @@ Unit tests for Infrastructure Adapters.
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+
 import pytest
+
 from src.domain.events import InvoiceUploadedEvent
 from src.events.event_bus import InMemoryEventBus
 from src.infrastructure.llm_client import LLMClient

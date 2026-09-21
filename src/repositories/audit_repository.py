@@ -2,9 +2,9 @@
 Audit Log Repository implementation.
 """
 
-from typing import List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.models.audit import AuditLogModel
 from src.repositories.base import BaseRepository
 
@@ -13,7 +13,7 @@ class AuditRepository(BaseRepository[AuditLogModel]):
     def __init__(self, session: AsyncSession):
         super().__init__(AuditLogModel, session)
 
-    async def get_by_entity(self, entity_type: str, entity_id: str) -> List[AuditLogModel]:
+    async def get_by_entity(self, entity_type: str, entity_id: str) -> list[AuditLogModel]:
         stmt = (
             select(AuditLogModel)
             .where(

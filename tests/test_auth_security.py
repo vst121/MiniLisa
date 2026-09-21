@@ -8,7 +8,12 @@ import pytest
 from fastapi import HTTPException, UploadFile
 
 from src.api.deps import get_current_user
-from src.auth.jwt import create_access_token, decode_access_token, get_password_hash, verify_password
+from src.auth.jwt import (
+    create_access_token,
+    decode_access_token,
+    get_password_hash,
+    verify_password,
+)
 from src.auth.security import validate_upload_file
 from src.config.settings import settings
 

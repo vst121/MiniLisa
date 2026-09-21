@@ -4,12 +4,11 @@ Executes document processing, agent pipeline, state checkpointing, pause/resume,
 """
 
 import json
-import sqlite3
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 import logging
-from pathlib import Path
-from typing import Any, Dict, Optional
+import sqlite3
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
 
 from src.agents.base import AgentState
 from src.agents.impl import (
@@ -19,19 +18,17 @@ from src.agents.impl import (
     SupplierAgent,
     ValidationAgent,
 )
+from src.config.settings import settings
 from src.domain.entities import InvoiceStatus, RecommendationAction
 from src.domain.events import (
     BaseEvent,
-    HumanApprovedEvent,
     InvoiceCompletedEvent,
     InvoiceParsedEvent,
-    InvoiceUploadedEvent,
     InvoiceValidatedEvent,
     PricingCompletedEvent,
     RecommendationCreatedEvent,
     SupplierCheckedEvent,
 )
-from src.config.settings import settings
 from src.events.event_bus import EventBus, get_event_bus
 from src.infrastructure.pdf_parser import DocumentParser
 from src.tools.impl import ERPConnectorTool, StoreAuditTool
@@ -42,19 +39,20 @@ logger = logging.getLogger(__name__)
 @dataclass
 class WorkflowCheckpoint:
     """Persistent workflow checkpoint snapshot for resume capability."""
+
     invoice_id: str
     current_step: str
-    state_data: Dict[str, Any]
+    state_data: dict[str, Any]
     status: InvoiceStatus
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 class WorkflowEngine:
     """Custom Event-Driven Workflow Engine supporting retries, checkpointing, and human approval."""
 
-    def __init__(self, event_bus: Optional[EventBus] = None) -> None:
+    def __init__(self, event_bus: EventBus | None = None) -> None:
         self.event_bus = event_bus or get_event_bus()
-        self.checkpoints: Dict[str, WorkflowCheckpoint] = {}
+        self.checkpoints: dict[str, WorkflowCheckpoint] = {}
         self.checkpoint_path = settings.WORKFLOW_CHECKPOINT_DIR / "workflow_checkpoints.sqlite3"
         self._initialize_checkpoint_store()
         self._load_checkpoints()
@@ -105,12 +103,18 @@ class WorkflowEngine:
                 for invoice_id, current_step, state_data, status, updated_at in rows
             }
         except (json.JSONDecodeError, TypeError, ValueError, sqlite3.Error) as exc:
-            logger.warning("Checkpoint store was unreadable; starting with empty checkpoint set: %s", exc)
+            logger.warning(
+                "Checkpoint store was unreadable; starting with empty checkpoint set: %s", exc
+            )
             self.checkpoints = {}
 
-    def save_checkpoint(self, invoice_id: str, step: str, state_data: Dict[str, Any], status: InvoiceStatus) -> None:
+    def save_checkpoint(
+        self, invoice_id: str, step: str, state_data: dict[str, Any], status: InvoiceStatus
+    ) -> None:
         """Save a checkpoint in memory and persist it transactionally to SQLite."""
-        logger.info(f"💾 [CHECKPOINT] Invoice '{invoice_id}' at step '{step}' with status '{status.value}'")
+        logger.info(
+            f"💾 [CHECKPOINT] Invoice '{invoice_id}' at step '{step}' with status '{status.value}'"
+        )
         checkpoint = WorkflowCheckpoint(
             invoice_id=invoice_id,
             current_step=step,
@@ -139,7 +143,7 @@ class WorkflowEngine:
                 ),
             )
 
-    def get_checkpoint(self, invoice_id: str) -> Optional[WorkflowCheckpoint]:
+    def get_checkpoint(self, invoice_id: str) -> WorkflowCheckpoint | None:
         """Retrieve stored checkpoint snapshot."""
         return self.checkpoints.get(invoice_id)
 
@@ -204,7 +208,9 @@ class WorkflowEngine:
             return
 
         logger.info(f"▶️ [WORKFLOW STEP 2] Validating invoice: {invoice_id}")
-        state = AgentState(state_id=f"st-{invoice_id}", invoice_id=invoice_id, data=checkpoint.state_data)
+        state = AgentState(
+            state_id=f"st-{invoice_id}", invoice_id=invoice_id, data=checkpoint.state_data
+        )
 
         agent_res = await self.validation_agent.run(state)
         val_output = agent_res.output or {}
@@ -226,11 +232,15 @@ class WorkflowEngine:
             return
 
         logger.info(f"▶️ [WORKFLOW STEP 3] Checking supplier risk: {invoice_id}")
-        state = AgentState(state_id=f"st-{invoice_id}", invoice_id=invoice_id, data=checkpoint.state_data)
+        state = AgentState(
+            state_id=f"st-{invoice_id}", invoice_id=invoice_id, data=checkpoint.state_data
+        )
 
         agent_res = await self.supplier_agent.run(state)
         sup_output = agent_res.output or {}
-        self.save_checkpoint(invoice_id, "SUPPLIER_CHECKED", state.data, InvoiceStatus.SUPPLIER_CHECKED)
+        self.save_checkpoint(
+            invoice_id, "SUPPLIER_CHECKED", state.data, InvoiceStatus.SUPPLIER_CHECKED
+        )
 
         await self.event_bus.publish(
             SupplierCheckedEvent(
@@ -249,11 +259,15 @@ class WorkflowEngine:
             return
 
         logger.info(f"▶️ [WORKFLOW STEP 4] Checking pricing anomalies: {invoice_id}")
-        state = AgentState(state_id=f"st-{invoice_id}", invoice_id=invoice_id, data=checkpoint.state_data)
+        state = AgentState(
+            state_id=f"st-{invoice_id}", invoice_id=invoice_id, data=checkpoint.state_data
+        )
 
         agent_res = await self.pricing_agent.run(state)
         price_output = agent_res.output or {}
-        self.save_checkpoint(invoice_id, "PRICING_COMPLETED", state.data, InvoiceStatus.PRICING_COMPLETED)
+        self.save_checkpoint(
+            invoice_id, "PRICING_COMPLETED", state.data, InvoiceStatus.PRICING_COMPLETED
+        )
 
         await self.event_bus.publish(
             PricingCompletedEvent(
@@ -271,11 +285,15 @@ class WorkflowEngine:
             return
 
         logger.info(f"▶️ [WORKFLOW STEP 5] Generating recommendation: {invoice_id}")
-        state = AgentState(state_id=f"st-{invoice_id}", invoice_id=invoice_id, data=checkpoint.state_data)
+        state = AgentState(
+            state_id=f"st-{invoice_id}", invoice_id=invoice_id, data=checkpoint.state_data
+        )
 
         agent_res = await self.recommendation_agent.run(state)
         rec_output = agent_res.output or {}
-        self.save_checkpoint(invoice_id, "RECOMMENDATION_CREATED", state.data, InvoiceStatus.RECOMMENDATION_PENDING)
+        self.save_checkpoint(
+            invoice_id, "RECOMMENDATION_CREATED", state.data, InvoiceStatus.RECOMMENDATION_PENDING
+        )
 
         await self.event_bus.publish(
             RecommendationCreatedEvent(
@@ -298,13 +316,22 @@ class WorkflowEngine:
 
         if action == RecommendationAction.NEEDS_HUMAN.value:
             logger.info(f"⏸ [WORKFLOW PAUSED] Invoice '{invoice_id}' requires Human Approval.")
-            self.save_checkpoint(invoice_id, "AWAITING_HUMAN_APPROVAL", checkpoint.state_data, InvoiceStatus.AWAITING_HUMAN_APPROVAL)
+            self.save_checkpoint(
+                invoice_id,
+                "AWAITING_HUMAN_APPROVAL",
+                checkpoint.state_data,
+                InvoiceStatus.AWAITING_HUMAN_APPROVAL,
+            )
         elif action == RecommendationAction.APPROVE.value:
             logger.info(f"⚡ [AUTO-APPROVE] Invoice '{invoice_id}' approved. Executing ERP sync.")
-            await self._finalize_and_post_erp(invoice_id, checkpoint.state_data, event.correlation_id)
+            await self._finalize_and_post_erp(
+                invoice_id, checkpoint.state_data, event.correlation_id
+            )
         elif action == RecommendationAction.REJECT.value:
             logger.info(f"⛔ [AUTO-REJECT] Invoice '{invoice_id}' rejected.")
-            self.save_checkpoint(invoice_id, "REJECTED", checkpoint.state_data, InvoiceStatus.REJECTED)
+            self.save_checkpoint(
+                invoice_id, "REJECTED", checkpoint.state_data, InvoiceStatus.REJECTED
+            )
             await self.audit_tool.run(
                 entity_type="Invoice",
                 entity_id=invoice_id,
@@ -318,7 +345,9 @@ class WorkflowEngine:
         action_taken = event.payload.get("action") or getattr(event, "action", "APPROVE")
         user_id = event.payload.get("user_id") or getattr(event, "user_id", "human_user")
 
-        logger.info(f"▶️ [WORKFLOW RESUMED] Received Human Approval ({action_taken}) for invoice: {invoice_id}")
+        logger.info(
+            f"▶️ [WORKFLOW RESUMED] Received Human Approval ({action_taken}) for invoice: {invoice_id}"
+        )
         checkpoint = self.get_checkpoint(invoice_id)
         state_data = checkpoint.state_data if checkpoint else {}
 
@@ -336,7 +365,7 @@ class WorkflowEngine:
             self.save_checkpoint(invoice_id, "REJECTED", state_data, InvoiceStatus.REJECTED)
 
     async def _finalize_and_post_erp(
-        self, invoice_id: str, state_data: Dict[str, Any], correlation_id: str
+        self, invoice_id: str, state_data: dict[str, Any], correlation_id: str
     ) -> None:
         """Post to ERP system and seal audit trail."""
         extraction = state_data.get("invoice_extraction", {})
@@ -359,4 +388,6 @@ class WorkflowEngine:
                 correlation_id=correlation_id,
             )
         )
-        logger.info(f"🎉 [WORKFLOW COMPLETED] Invoice '{invoice_id}' posted to ERP ({erp_res.get('erp_reference_code')})")
+        logger.info(
+            f"🎉 [WORKFLOW COMPLETED] Invoice '{invoice_id}' posted to ERP ({erp_res.get('erp_reference_code')})"
+        )

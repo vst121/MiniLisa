@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.api.deps import get_current_user, get_db_session, get_workflow_engine
 from src.auth.jwt import TokenData
 from src.auth.security import validate_upload_file
@@ -31,14 +32,14 @@ async def upload_invoice(
     file: UploadFile = File(...),
     current_user: TokenData = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
-    workflow_engine = Depends(get_workflow_engine),
+    workflow_engine=Depends(get_workflow_engine),
 ):
     # Security validation & scan
     file_bytes = await validate_upload_file(file)
 
     invoice_id = str(uuid.uuid4())
     filename = Path(file.filename or f"invoice_{invoice_id[:8]}.pdf").name
-    
+
     # Save file to upload directory
     settings.create_upload_dir()
     saved_path = settings.UPLOAD_DIR / f"{invoice_id}_{filename}"
@@ -83,7 +84,7 @@ async def upload_invoice(
 async def get_invoice(
     id: str,
     current_user: TokenData = Depends(get_current_user),
-    workflow_engine = Depends(get_workflow_engine),
+    workflow_engine=Depends(get_workflow_engine),
 ):
     checkpoint = workflow_engine.get_checkpoint(id)
     if not checkpoint:

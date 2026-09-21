@@ -3,14 +3,12 @@ Unit tests for Custom Agent Framework and Tools.
 """
 
 import pytest
-from src.agents.base import AgentResult, AgentState, BaseAgent, RetryPolicy
-from src.schemas.validation import ValidationResult
+
 from src.tools.impl import (
     CalculateVATTool,
     CurrencyConversionTool,
-    ERPConnectorTool,
     EmailSenderTool,
-    SearchPreviousPurchasesTool,
+    ERPConnectorTool,
     SearchSupplierTool,
     StoreAuditTool,
 )
@@ -28,7 +26,9 @@ async def test_search_supplier_tool():
 @pytest.mark.asyncio
 async def test_calculate_vat_tool():
     tool = CalculateVATTool()
-    res = await tool.run(subtotal=100.0, vat_amount=20.0, total_amount=120.0, expected_vat_rate_pct=20.0)
+    res = await tool.run(
+        subtotal=100.0, vat_amount=20.0, total_amount=120.0, expected_vat_rate_pct=20.0
+    )
     assert res["math_correct"] is True
     assert res["vat_rate_correct"] is True
 
@@ -51,7 +51,9 @@ async def test_erp_connector_tool():
 @pytest.mark.asyncio
 async def test_email_sender_tool():
     tool = EmailSenderTool()
-    res = await tool.run(recipient_email="approver@company.com", subject="Invoice Review", body="Please approve")
+    res = await tool.run(
+        recipient_email="approver@company.com", subject="Invoice Review", body="Please approve"
+    )
     assert res["delivered"] is True
 
 

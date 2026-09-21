@@ -3,10 +3,11 @@ Security & File Validation Module.
 Provides upload size limits, MIME verification, and ClamAV virus scanner abstraction.
 """
 
-from abc import ABC, abstractmethod
 import logging
-from typing import Tuple
+from abc import ABC, abstractmethod
+
 from fastapi import HTTPException, UploadFile, status
+
 from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ class VirusScanner(ABC):
     """Abstract Virus Scanner Adapter Interface."""
 
     @abstractmethod
-    async def scan_bytes(self, content: bytes, filename: str) -> Tuple[bool, str]:
+    async def scan_bytes(self, content: bytes, filename: str) -> tuple[bool, str]:
         """Scan file content for malware. Returns (is_clean, virus_name)."""
         pass
 
@@ -24,7 +25,7 @@ class VirusScanner(ABC):
 class MockClamAVScanner(VirusScanner):
     """ClamAV Virus Scanner mock implementation for dev/test."""
 
-    async def scan_bytes(self, content: bytes, filename: str) -> Tuple[bool, str]:
+    async def scan_bytes(self, content: bytes, filename: str) -> tuple[bool, str]:
         if b"EICAR-STANDARD-ANTIVIRUS-TEST-FILE" in content or "virus" in filename.lower():
             logger.warning(f"[VirusScanner] MALWARE DETECTED in file '{filename}'!")
             return False, "Win32.TestMalware.EICAR"

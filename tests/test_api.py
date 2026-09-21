@@ -51,7 +51,9 @@ def test_health_endpoint(client: TestClient):
 
 
 def test_api_upload_flow(client: TestClient):
-    auth_headers = {"Authorization": f"Bearer {create_access_token({'sub': 'procurement_manager', 'role': 'admin'})}"}
+    auth_headers = {
+        "Authorization": f"Bearer {create_access_token({'sub': 'procurement_manager', 'role': 'admin'})}"
+    }
     pdf_content = b"%PDF-1.4 Header\nINVOICE #99001\nSupplier: Acme Industrial Supplies\nTax ID: TAX-VALID-100\nTotal: 350.00"
     file_payload = {"file": ("test_invoice.pdf", BytesIO(pdf_content), "application/pdf")}
 
@@ -60,7 +62,9 @@ def test_api_upload_flow(client: TestClient):
         page_count=1,
         tables=[],
     )
-    with patch("src.workflows.workflow_engine.DocumentParser.parse_pdf", return_value=parsed_document):
+    with patch(
+        "src.workflows.workflow_engine.DocumentParser.parse_pdf", return_value=parsed_document
+    ):
         upload_res = client.post("/api/v1/upload", files=file_payload, headers=auth_headers)
     assert upload_res.status_code == 202
     data = upload_res.json()
@@ -97,7 +101,9 @@ def test_api_upload_flow(client: TestClient):
 
 
 def test_api_rejects_non_pdf_upload(client: TestClient):
-    auth_headers = {"Authorization": f"Bearer {create_access_token({'sub': 'procurement_manager', 'role': 'admin'})}"}
+    auth_headers = {
+        "Authorization": f"Bearer {create_access_token({'sub': 'procurement_manager', 'role': 'admin'})}"
+    }
     file_payload = {"file": ("invoice.txt", BytesIO(b"not a pdf"), "text/plain")}
 
     response = client.post("/api/v1/upload", files=file_payload, headers=auth_headers)
@@ -117,12 +123,18 @@ def test_api_rejects_invalid_bearer_token(client: TestClient):
 
 
 def test_api_sanitizes_uploaded_filename(client: TestClient):
-    auth_headers = {"Authorization": f"Bearer {create_access_token({'sub': 'procurement_manager', 'role': 'admin'})}"}
+    auth_headers = {
+        "Authorization": f"Bearer {create_access_token({'sub': 'procurement_manager', 'role': 'admin'})}"
+    }
     pdf_content = b"%PDF-1.4 Header\nINVOICE #99002\nTotal: 100.00"
     file_payload = {"file": ("..\\outside\\invoice.pdf", BytesIO(pdf_content), "application/pdf")}
 
-    parsed_document = ExtractedDocument(raw_text="INVOICE #99002\nTotal: 100.00", page_count=1, tables=[])
-    with patch("src.workflows.workflow_engine.DocumentParser.parse_pdf", return_value=parsed_document):
+    parsed_document = ExtractedDocument(
+        raw_text="INVOICE #99002\nTotal: 100.00", page_count=1, tables=[]
+    )
+    with patch(
+        "src.workflows.workflow_engine.DocumentParser.parse_pdf", return_value=parsed_document
+    ):
         response = client.post("/api/v1/upload", files=file_payload, headers=auth_headers)
 
     assert response.status_code == 202

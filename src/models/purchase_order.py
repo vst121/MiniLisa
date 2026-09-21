@@ -3,10 +3,16 @@ Purchase Order SQLAlchemy 2 Model.
 """
 
 import uuid
+from typing import TYPE_CHECKING
+
 from sqlalchemy import Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from src.infrastructure.database import Base
 from src.models.base import TimestampMixin
+
+if TYPE_CHECKING:
+    from src.models.supplier import SupplierModel
 
 
 class PurchaseOrderModel(Base, TimestampMixin):
@@ -20,4 +26,6 @@ class PurchaseOrderModel(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(50), default="OPEN", nullable=False)
 
     # Relationship
-    supplier: Mapped["SupplierModel"] = relationship("SupplierModel", back_populates="purchase_orders")
+    supplier: Mapped["SupplierModel"] = relationship(
+        "SupplierModel", back_populates="purchase_orders"
+    )

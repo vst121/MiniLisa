@@ -2,26 +2,27 @@
 Base Repository Interface & Generic Async SQLAlchemy Implementation.
 """
 
-from typing import Generic, List, Optional, Type, TypeVar
+from typing import TypeVar
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 ModelType = TypeVar("ModelType")
 
 
-class BaseRepository(Generic[ModelType]):
+class BaseRepository[ModelType]:
     """Generic async repository providing standard CRUD operations."""
 
-    def __init__(self, model: Type[ModelType], session: AsyncSession):
+    def __init__(self, model: type[ModelType], session: AsyncSession):
         self.model = model
         self.session = session
 
-    async def get_by_id(self, id: str) -> Optional[ModelType]:
-        stmt = select(self.model).where(self.model.id == id) # type: ignore
+    async def get_by_id(self, id: str) -> ModelType | None:
+        stmt = select(self.model).where(self.model.id == id)  # type: ignore
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
-    async def get_all(self, limit: int = 100, offset: int = 0) -> List[ModelType]:
+    async def get_all(self, limit: int = 100, offset: int = 0) -> list[ModelType]:
         stmt = select(self.model).limit(limit).offset(offset)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())

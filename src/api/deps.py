@@ -2,14 +2,12 @@
 FastAPI Dependency Injection Module.
 """
 
-from typing import AsyncGenerator, Optional
-
-from fastapi import Depends, HTTPException, Header, status
+from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.jwt import TokenData, decode_access_token
 from src.config.settings import settings
-from src.events.event_bus import EventBus, get_event_bus
+from src.events.event_bus import get_event_bus
 from src.infrastructure.database import get_db_session
 from src.repositories.audit_repository import AuditRepository
 from src.repositories.invoice_repository import InvoiceRepository
@@ -17,7 +15,7 @@ from src.repositories.supplier_repository import SupplierRepository
 from src.workflows.workflow_engine import WorkflowEngine
 
 # Shared singleton workflow engine instance for API handlers
-_global_workflow_engine: Optional[WorkflowEngine] = None
+_global_workflow_engine: WorkflowEngine | None = None
 
 
 def get_workflow_engine() -> WorkflowEngine:
@@ -28,7 +26,7 @@ def get_workflow_engine() -> WorkflowEngine:
     return _global_workflow_engine
 
 
-async def get_current_user(authorization: Optional[str] = Header(None)) -> TokenData:
+async def get_current_user(authorization: str | None = Header(None)) -> TokenData:
     """Dependency enforcing JWT authentication on protected API endpoints."""
     if not authorization:
         if not settings.REQUIRE_AUTHENTICATION:
@@ -49,13 +47,13 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Token
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Could not validate credentials: {e}",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Could not validate credentials: {e}",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
 
 
 async def get_invoice_repo(session: AsyncSession = Depends(get_db_session)) -> InvoiceRepository:

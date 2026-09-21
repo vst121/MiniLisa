@@ -3,6 +3,7 @@ Recommendation and Human Approval API Endpoints.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+
 from src.api.deps import get_current_user, get_workflow_engine
 from src.auth.jwt import TokenData
 from src.domain.entities import RecommendationAction
@@ -21,7 +22,7 @@ router = APIRouter(tags=["Recommendations & Approvals"])
 async def get_recommendation(
     id: str,
     current_user: TokenData = Depends(get_current_user),
-    workflow_engine = Depends(get_workflow_engine),
+    workflow_engine=Depends(get_workflow_engine),
 ):
     checkpoint = workflow_engine.get_checkpoint(id)
     if not checkpoint:
@@ -57,7 +58,7 @@ async def get_recommendation(
 async def approve_recommendation(
     payload: HumanApprovalRequest,
     current_user: TokenData = Depends(get_current_user),
-    workflow_engine = Depends(get_workflow_engine),
+    workflow_engine=Depends(get_workflow_engine),
 ):
     checkpoint = workflow_engine.get_checkpoint(payload.invoice_id)
     if not checkpoint:

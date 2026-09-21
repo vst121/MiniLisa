@@ -3,9 +3,10 @@ Unit tests for Database Models and Repositories using SQLite in-memory async eng
 """
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
 from src.infrastructure.database import Base
-from src.models.invoice import InvoiceModel, InvoiceItemModel
+from src.models.invoice import InvoiceModel
 from src.models.supplier import SupplierModel
 from src.repositories.invoice_repository import InvoiceRepository
 from src.repositories.supplier_repository import SupplierRepository
@@ -18,7 +19,9 @@ async def async_session():
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    session_maker = async_sessionmaker(bind=test_engine, class_=AsyncSession, expire_on_commit=False)
+    session_maker = async_sessionmaker(
+        bind=test_engine, class_=AsyncSession, expire_on_commit=False
+    )
     async with session_maker() as session:
         yield session
         await session.rollback()
@@ -29,7 +32,7 @@ async def async_session():
 @pytest.mark.asyncio
 async def test_invoice_repository_crud(async_session: AsyncSession):
     repo = InvoiceRepository(async_session)
-    
+
     invoice = InvoiceModel(
         file_name="invoice_test.pdf",
         file_path="/path/test.pdf",

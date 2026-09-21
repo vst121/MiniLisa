@@ -1,6 +1,6 @@
 """Deterministic adapters shared by tests; they never make network calls."""
 
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel
 
@@ -12,7 +12,9 @@ T = TypeVar("T", bound=BaseModel)
 class DeterministicLLMClient:
     """Minimal LLM port fake returning realistic invoice extraction data."""
 
-    async def generate_structured(self, _messages: list[dict[str, str]], response_schema: type[T]) -> T:
+    async def generate_structured(
+        self, _messages: list[dict[str, str]], response_schema: type[T]
+    ) -> T:
         if response_schema is InvoiceExtraction:
             return InvoiceExtraction(
                 invoice_number="INV-1001",

@@ -4,7 +4,7 @@ Compares line item prices with historical POs/invoices and identifies price spik
 """
 
 import time
-from typing import List, Optional
+
 from src.agents.base import AgentResult, AgentState, BaseAgent
 from src.infrastructure.llm_client import LLMClient
 from src.prompts.templates import PRICING_AGENT_SYSTEM_PROMPT
@@ -17,7 +17,7 @@ class PricingAgent(BaseAgent):
     role = "Pricing Agent"
     system_prompt = PRICING_AGENT_SYSTEM_PROMPT
 
-    def __init__(self, llm_client: Optional[LLMClient] = None) -> None:
+    def __init__(self, llm_client: LLMClient | None = None) -> None:
         tools = [SearchPreviousPurchasesTool(), CurrencyConversionTool()]
         super().__init__(llm_client=llm_client, tools=tools)
 
@@ -27,7 +27,7 @@ class PricingAgent(BaseAgent):
         items = extraction_data.get("items", [])
         supplier_name = extraction_data.get("supplier_name", "Supplier")
         tool_calls_made = []
-        anomalies: List[PriceAnomaly] = []
+        anomalies: list[PriceAnomaly] = []
 
         async with TelemetryService.trace_agent_execution(self.role, state.invoice_id) as metrics:
             for item in items:
@@ -71,7 +71,9 @@ class PricingAgent(BaseAgent):
 
             duration = (time.perf_counter() - start_time) * 1000
             state.data["pricing_comparison"] = pricing_comp.model_dump()
-            state.history.append({"agent": self.role, "status": "COMPLETED", "timestamp": time.time()})
+            state.history.append(
+                {"agent": self.role, "status": "COMPLETED", "timestamp": time.time()}
+            )
 
             return AgentResult(
                 success=True,

@@ -3,6 +3,7 @@ API v1 Main Router Aggregator.
 """
 
 from fastapi import APIRouter
+
 from src.api.v1.endpoints import audit, health, invoices, recommendations
 
 api_v1_router = APIRouter()

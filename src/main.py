@@ -3,12 +3,14 @@ FastAPI Main Application Entrypoint.
 Initializes lifespan events, CORS middleware, OpenTelemetry, and API v1 routers.
 """
 
-from contextlib import asynccontextmanager
 import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+
 from src.api.deps import get_workflow_engine
 from src.api.v1.router import api_v1_router
 from src.config.settings import settings
@@ -22,7 +24,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """FastAPI Application Lifespan: Startup & Shutdown events."""
     logger.info(f"🚀 Starting {settings.APP_NAME} in '{settings.ENV}' mode...")
-    
+
     # Create upload directory
     settings.create_upload_dir()
 
@@ -30,7 +32,9 @@ async def lifespan(app: FastAPI):
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     else:
-        logger.info("Automatic table creation disabled; database migrations must run before startup.")
+        logger.info(
+            "Automatic table creation disabled; database migrations must run before startup."
+        )
 
     # Register workflow subscribers to event bus
     workflow_engine = get_workflow_engine()
@@ -69,6 +73,7 @@ async def correlation_middleware(request: Request, call_next):
         correlation_id,
     )
     return response
+
 
 # CORS Middleware
 app.add_middleware(

@@ -4,7 +4,7 @@ Reads document raw text/tables and produces structured InvoiceExtraction JSON.
 """
 
 import time
-from typing import Optional
+
 from src.agents.base import AgentResult, AgentState, BaseAgent
 from src.infrastructure.llm_client import LLMClient
 from src.prompts.templates import INVOICE_EXTRACTION_SYSTEM_PROMPT
@@ -16,7 +16,7 @@ class InvoiceAgent(BaseAgent):
     role = "Invoice Extraction Agent"
     system_prompt = INVOICE_EXTRACTION_SYSTEM_PROMPT
 
-    def __init__(self, llm_client: Optional[LLMClient] = None) -> None:
+    def __init__(self, llm_client: LLMClient | None = None) -> None:
         super().__init__(llm_client=llm_client, tools=[])
 
     async def run(self, state: AgentState) -> AgentResult:
@@ -24,7 +24,7 @@ class InvoiceAgent(BaseAgent):
         raw_text = state.data.get("raw_text", "")
         tables = state.data.get("tables", [])
 
-        async with TelemetryService.trace_agent_execution(self.role, state.invoice_id) as metrics:
+        async with TelemetryService.trace_agent_execution(self.role, state.invoice_id):
             messages = [
                 {"role": "system", "content": self.system_prompt},
                 {
@@ -37,14 +37,16 @@ class InvoiceAgent(BaseAgent):
                 extraction: InvoiceExtraction = await self.invoke_llm_with_retry(
                     messages=messages, response_schema=InvoiceExtraction
                 )
-                
+
                 # Fallback safeguard if mock LLM returned default values but text contains totals
                 if extraction.total_amount == 0.0 and "350" in raw_text:
                     extraction.total_amount = 350.0
 
                 duration = (time.perf_counter() - start_time) * 1000
                 state.data["invoice_extraction"] = extraction.model_dump()
-                state.history.append({"agent": self.role, "status": "COMPLETED", "timestamp": time.time()})
+                state.history.append(
+                    {"agent": self.role, "status": "COMPLETED", "timestamp": time.time()}
+                )
 
                 return AgentResult(
                     success=True,

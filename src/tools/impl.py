@@ -4,8 +4,10 @@ Every tool is independent, typed with Pydantic, and unit testable.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
+
 from src.tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
@@ -15,16 +17,18 @@ logger = logging.getLogger(__name__)
 # 1. Search Supplier Tool
 # ---------------------------------------------------------
 class SearchSupplierInput(BaseModel):
-    supplier_name: Optional[str] = Field(default=None, description="Name of supplier to search")
-    tax_id: Optional[str] = Field(default=None, description="Tax ID or VAT number of supplier")
+    supplier_name: str | None = Field(default=None, description="Name of supplier to search")
+    tax_id: str | None = Field(default=None, description="Tax ID or VAT number of supplier")
 
 
 class SearchSupplierTool(BaseTool):
     name = "search_supplier"
-    description = "Searches the enterprise database for supplier risk score, tax ID, and past history."
+    description = (
+        "Searches the enterprise database for supplier risk score, tax ID, and past history."
+    )
     args_schema = SearchSupplierInput
 
-    async def run(self, **kwargs: Any) -> Dict[str, Any]:
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
         supplier_name = kwargs.get("supplier_name", "")
         tax_id = kwargs.get("tax_id", "")
         logger.info(f"[SearchSupplierTool] Searching for name='{supplier_name}', tax_id='{tax_id}'")
@@ -41,7 +45,7 @@ class SearchSupplierTool(BaseTool):
                 "status": "FLAGGED",
                 "risk_factors": ["Prior fraudulent invoices", "Unverified bank account"],
             }
-        
+
         return {
             "supplier_found": True,
             "supplier_id": "sup-clean-002",
@@ -67,9 +71,11 @@ class SearchPreviousPurchasesTool(BaseTool):
     description = "Retrieves historical purchase order unit prices for price anomaly comparison."
     args_schema = SearchPreviousPurchasesInput
 
-    async def run(self, **kwargs: Any) -> Dict[str, Any]:
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
         item_description = kwargs.get("item_description", "")
-        logger.info(f"[SearchPreviousPurchasesTool] Fetching history for item: '{item_description}'")
+        logger.info(
+            f"[SearchPreviousPurchasesTool] Fetching history for item: '{item_description}'"
+        )
 
         # Returns historical baseline price
         return {
@@ -88,15 +94,19 @@ class CalculateVATInput(BaseModel):
     subtotal: float = Field(description="Subtotal amount before tax")
     vat_amount: float = Field(description="Claimed VAT amount on invoice")
     total_amount: float = Field(description="Claimed grand total on invoice")
-    expected_vat_rate_pct: float = Field(default=20.0, description="Expected VAT rate percentage e.g. 20.0 for 20%")
+    expected_vat_rate_pct: float = Field(
+        default=20.0, description="Expected VAT rate percentage e.g. 20.0 for 20%"
+    )
 
 
 class CalculateVATTool(BaseTool):
     name = "calculate_vat"
-    description = "Validates mathematical consistency of subtotal + VAT = total and checks expected VAT rate."
+    description = (
+        "Validates mathematical consistency of subtotal + VAT = total and checks expected VAT rate."
+    )
     args_schema = CalculateVATInput
 
-    async def run(self, **kwargs: Any) -> Dict[str, Any]:
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
         subtotal = float(kwargs.get("subtotal", 0.0))
         vat_amount = float(kwargs.get("vat_amount", 0.0))
         total_amount = float(kwargs.get("total_amount", 0.0))
@@ -132,7 +142,7 @@ class CurrencyConversionTool(BaseTool):
     description = "Converts financial amounts between different foreign currencies."
     args_schema = CurrencyConversionInput
 
-    async def run(self, **kwargs: Any) -> Dict[str, Any]:
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
         amount = float(kwargs.get("amount", 0.0))
         from_curr = kwargs.get("from_currency", "USD").upper()
         to_curr = kwargs.get("to_currency", "USD").upper()
@@ -162,13 +172,17 @@ class ERPConnectorInput(BaseModel):
 
 class ERPConnectorTool(BaseTool):
     name = "erp_connector"
-    description = "Integrates with enterprise ERP system (SAP/NetSuite mock) to post approved invoices."
+    description = (
+        "Integrates with enterprise ERP system (SAP/NetSuite mock) to post approved invoices."
+    )
     args_schema = ERPConnectorInput
 
-    async def run(self, **kwargs: Any) -> Dict[str, Any]:
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
         invoice_id = kwargs.get("invoice_id")
         amount = kwargs.get("amount")
-        logger.info(f"[ERPConnectorTool] Posting invoice {invoice_id} of amount ${amount} to fake ERP")
+        logger.info(
+            f"[ERPConnectorTool] Posting invoice {invoice_id} of amount ${amount} to fake ERP"
+        )
 
         return {
             "success": True,
@@ -192,7 +206,7 @@ class EmailSenderTool(BaseTool):
     description = "Sends notification emails to procurement managers or approvers."
     args_schema = EmailSenderInput
 
-    async def run(self, **kwargs: Any) -> Dict[str, Any]:
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
         recipient = kwargs.get("recipient_email")
         subject = kwargs.get("subject")
         logger.info(f"[EmailSenderTool] Sending email to '{recipient}' with subject '{subject}'")
@@ -212,7 +226,7 @@ class StoreAuditInput(BaseModel):
     entity_id: str = Field(description="ID of entity being audited")
     event_name: str = Field(description="Audit event name")
     actor: str = Field(default="SYSTEM", description="Actor initiating event")
-    details: Dict[str, Any] = Field(default_factory=dict, description="Arbitrary audit log payload")
+    details: dict[str, Any] = Field(default_factory=dict, description="Arbitrary audit log payload")
 
 
 class StoreAuditTool(BaseTool):
@@ -220,7 +234,7 @@ class StoreAuditTool(BaseTool):
     description = "Stores immutable audit log entry for system trace and compliance."
     args_schema = StoreAuditInput
 
-    async def run(self, **kwargs: Any) -> Dict[str, Any]:
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
         entity_id = kwargs.get("entity_id")
         event_name = kwargs.get("event_name")
         logger.info(f"[StoreAuditTool] Audit recorded for {entity_id}: {event_name}")

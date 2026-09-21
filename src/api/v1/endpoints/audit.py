@@ -2,8 +2,8 @@
 Audit Log API Endpoint.
 """
 
-from typing import List
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends
+
 from src.api.deps import get_audit_repo, get_current_user
 from src.auth.jwt import TokenData
 from src.repositories.audit_repository import AuditRepository
@@ -14,7 +14,7 @@ router = APIRouter(tags=["Audit Logs"])
 
 @router.get(
     "/audit/{id}",
-    response_model=List[AuditLogResponse],
+    response_model=list[AuditLogResponse],
     summary="Get Audit Log History for Invoice",
     description="Retrieves the immutable audit trail of events recorded for an invoice.",
 )

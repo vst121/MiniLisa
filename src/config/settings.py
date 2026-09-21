@@ -4,7 +4,7 @@ Loads configuration from environment variables and .env file.
 """
 
 from pathlib import Path
-from typing import Any, List, Literal
+from typing import Any, Literal
 
 from pydantic import Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,13 +28,13 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "replace-with-secure-random-key-for-production"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
-    CORS_ALLOW_ORIGINS: List[str] = Field(
+    CORS_ALLOW_ORIGINS: list[str] = Field(
         default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"]
     )
 
     @field_validator("ALLOWED_FILE_TYPES", "CORS_ALLOW_ORIGINS", mode="before")
     @classmethod
-    def parse_string_list(cls, value: Any) -> List[str] | Any:
+    def parse_string_list(cls, value: Any) -> list[str] | Any:
         if value is None:
             return []
         if isinstance(value, list):
@@ -58,7 +58,9 @@ class Settings(BaseSettings):
     def validate_production_security(self) -> "Settings":
         if self.ENV == "production":
             if len(self.SECRET_KEY) < 32 or "change-this" in self.SECRET_KEY.lower():
-                raise ValueError("SECRET_KEY must be a strong production secret of at least 32 characters")
+                raise ValueError(
+                    "SECRET_KEY must be a strong production secret of at least 32 characters"
+                )
             if not self.REQUIRE_AUTHENTICATION:
                 raise ValueError("REQUIRE_AUTHENTICATION must be true in production")
             if "*" in self.CORS_ALLOW_ORIGINS:
@@ -66,7 +68,9 @@ class Settings(BaseSettings):
             if self.ALLOW_MOCK_VIRUS_SCANNER:
                 raise ValueError("ALLOW_MOCK_VIRUS_SCANNER must be false in production")
             if self.AUTO_CREATE_TABLES:
-                raise ValueError("AUTO_CREATE_TABLES must be false in production; run migrations instead")
+                raise ValueError(
+                    "AUTO_CREATE_TABLES must be false in production; run migrations instead"
+                )
         return self
 
     # Database Settings (PostgreSQL + pgvector)
@@ -125,8 +129,12 @@ class Settings(BaseSettings):
 
     # Uploads & Storage
     MAX_UPLOAD_SIZE_MB: int = 10
-    ALLOWED_FILE_TYPES: List[str] = Field(default_factory=lambda: ["pdf"])
+    ALLOWED_FILE_TYPES: list[str] = Field(default_factory=lambda: ["pdf"])
     ALLOW_MOCK_VIRUS_SCANNER: bool = True
+    INVOICE_RETENTION_DAYS: int = 2555
+    AUDIT_RETENTION_DAYS: int = 2555
+    UPLOAD_RETENTION_DAYS: int = 365
+    CHECKPOINT_RETENTION_DAYS: int = 90
     UPLOAD_DIR: Path = Path("storage/uploads")
     WORKFLOW_CHECKPOINT_DIR: Path = Path("storage/checkpoints")
 

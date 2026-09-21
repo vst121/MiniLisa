@@ -4,7 +4,7 @@ Synthesizes validation, supplier risk, and pricing findings to produce APPROVE, 
 """
 
 import time
-from typing import Optional
+
 from src.agents.base import AgentResult, AgentState, BaseAgent
 from src.domain.entities import RecommendationAction
 from src.infrastructure.llm_client import LLMClient
@@ -17,7 +17,7 @@ class RecommendationAgent(BaseAgent):
     role = "Recommendation Agent"
     system_prompt = RECOMMENDATION_AGENT_SYSTEM_PROMPT
 
-    def __init__(self, llm_client: Optional[LLMClient] = None) -> None:
+    def __init__(self, llm_client: LLMClient | None = None) -> None:
         super().__init__(llm_client=llm_client, tools=[])
 
     async def run(self, state: AgentState) -> AgentResult:
@@ -26,19 +26,21 @@ class RecommendationAgent(BaseAgent):
         supplier_risk = state.data.get("supplier_risk", {})
         pricing = state.data.get("pricing_comparison", {})
 
-        async with TelemetryService.trace_agent_execution(self.role, state.invoice_id) as metrics:
+        async with TelemetryService.trace_agent_execution(self.role, state.invoice_id):
             flagged_issues = []
 
             # Deterministic decision synthesis rules
             if not validation.get("is_valid", True):
                 flagged_issues.append("Validation failed (missing fields or math error)")
-            
+
             risk_level = supplier_risk.get("risk_level", "LOW")
             if risk_level in ["HIGH", "CRITICAL"]:
                 flagged_issues.append(f"Supplier risk score high ({risk_level})")
 
             if pricing.get("has_pricing_anomalies", False):
-                flagged_issues.append(f"Price anomaly detected (+{pricing.get('max_price_variance_pct', 0.0)}%)")
+                flagged_issues.append(
+                    f"Price anomaly detected (+{pricing.get('max_price_variance_pct', 0.0)}%)"
+                )
 
             # Determine action
             if not validation.get("is_valid", True) or risk_level == "CRITICAL":
@@ -54,7 +56,7 @@ class RecommendationAgent(BaseAgent):
                 confidence = 0.98
                 explanation = "Invoice meets all compliance criteria, passed validation, supplier is low risk, and pricing is within baseline limits."
 
-            requires_human = (action == RecommendationAction.NEEDS_HUMAN)
+            requires_human = action == RecommendationAction.NEEDS_HUMAN
 
             rec_result = RecommendationResult(
                 action=action,
@@ -67,7 +69,9 @@ class RecommendationAgent(BaseAgent):
 
             duration = (time.perf_counter() - start_time) * 1000
             state.data["recommendation_result"] = rec_result.model_dump()
-            state.history.append({"agent": self.role, "status": "COMPLETED", "timestamp": time.time()})
+            state.history.append(
+                {"agent": self.role, "status": "COMPLETED", "timestamp": time.time()}
+            )
 
             return AgentResult(
                 success=True,
