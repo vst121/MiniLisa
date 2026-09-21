@@ -3,10 +3,13 @@ Unit tests for Auth and Security validation modules.
 """
 
 from io import BytesIO
+
 import pytest
 from fastapi import HTTPException, UploadFile
+
+from src.api.deps import get_current_user
 from src.auth.jwt import create_access_token, decode_access_token, get_password_hash, verify_password
-from src.auth.security import MockClamAVScanner, validate_upload_file
+from src.auth.security import validate_upload_file
 
 
 def test_jwt_token_flow():
@@ -21,6 +24,15 @@ def test_password_hashing():
     hashed = get_password_hash(raw_pass)
     assert verify_password(raw_pass, hashed) is True
     assert verify_password("WrongPassword", hashed) is False
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_requires_authorization_header():
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user(None)
+
+    assert exc_info.value.status_code == 401
+    assert "Authorization header is required" in exc_info.value.detail
 
 
 @pytest.mark.asyncio

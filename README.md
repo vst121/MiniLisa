@@ -75,16 +75,16 @@ For an entirely local single-process event flow, set `EVENT_BUS_TYPE=memory` in 
 
 All routes are prefixed with `/api/v1`.
 
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `GET` | `/health` | Service status and configured event bus |
-| `POST` | `/upload` | Validate and submit a PDF invoice for processing |
-| `GET` | `/invoice/{id}` | Retrieve invoice extraction and workflow status |
-| `GET` | `/recommendation/{id}` | Retrieve the recommendation once available |
-| `POST` | `/approve` | Submit a human APPROVE or REJECT decision |
-| `GET` | `/audit/{id}` | Retrieve audit records for an invoice |
+| Method | Route                  | Purpose                                          |
+| ------ | ---------------------- | ------------------------------------------------ |
+| `GET`  | `/health`              | Service status and configured event bus          |
+| `POST` | `/upload`              | Validate and submit a PDF invoice for processing |
+| `GET`  | `/invoice/{id}`        | Retrieve invoice extraction and workflow status  |
+| `GET`  | `/recommendation/{id}` | Retrieve the recommendation once available       |
+| `POST` | `/approve`             | Submit a human APPROVE or REJECT decision        |
+| `GET`  | `/audit/{id}`          | Retrieve audit records for an invoice            |
 
-Protected routes accept `Authorization: Bearer <JWT>`. The present development implementation deliberately supplies a demo administrator when this header is absent; do not rely on that behavior outside local/demo deployments.
+Protected routes accept `Authorization: Bearer <JWT>`. By default, the application requires a valid token for every protected route, and it refuses to silently fall back to a demo identity when the header is missing.
 
 ### Example workflow
 
@@ -111,14 +111,14 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/v1/approve -Conten
 
 Copy `.env.example` to `.env`; the most important settings are:
 
-| Setting | Purpose |
-| --- | --- |
-| `DATABASE_URL` or `POSTGRES_*` | Async PostgreSQL connection settings |
-| `EVENT_BUS_TYPE` | `memory` for local process execution, `redis` for the Redis adapter |
-| `OPENAI_API_KEY`, `LLM_MODEL` | LiteLLM provider credentials and model |
-| `MAX_UPLOAD_SIZE_MB`, `ALLOWED_FILE_TYPES` | Upload validation policy |
-| `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT signing and expiry |
-| `ENABLE_TELEMETRY`, `LANGFUSE_*` | Telemetry configuration |
+| Setting                                     | Purpose                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------- |
+| `DATABASE_URL` or `POSTGRES_*`              | Async PostgreSQL connection settings                                |
+| `EVENT_BUS_TYPE`                            | `memory` for local process execution, `redis` for the Redis adapter |
+| `OPENAI_API_KEY`, `LLM_MODEL`               | LiteLLM provider credentials and model                              |
+| `MAX_UPLOAD_SIZE_MB`, `ALLOWED_FILE_TYPES`  | Upload validation policy                                            |
+| `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT signing and expiry                                              |
+| `ENABLE_TELEMETRY`, `LANGFUSE_*`            | Telemetry configuration                                             |
 
 Never commit `.env`, real API keys, or production signing keys. Rotate any secret that has been exposed.
 
@@ -158,8 +158,8 @@ docs/              Architecture and operational design notes
 
 Before a production deployment, complete the following controls:
 
-- Remove the missing-header demo-auth fallback; integrate the identity provider and enforce role/tenant authorization.
-- Restrict CORS to approved origins and source secrets from a managed secret store.
+- Require a valid JWT for all protected routes by default; allow local-only bypasses only when `REQUIRE_AUTHENTICATION=false` and you explicitly intend to disable it.
+- Restrict CORS to approved origins from `CORS_ALLOW_ORIGINS` and source secrets from a managed secret store.
 - Replace the mock ClamAV scanner and ERP/email/audit tools with authenticated production adapters.
 - Persist workflow checkpoints and audit events transactionally; the current checkpoint store is process memory.
 - Operate Redis Streams with consumer groups, idempotency keys, retries, dead-letter queues, and a worker process.
@@ -168,4 +168,4 @@ Before a production deployment, complete the following controls:
 
 ## License
 
-No license file is currently included. Add the organization-approved license before distributing the project.
+This project is licensed under the [MIT License](https://opensource.org/license/mit/).

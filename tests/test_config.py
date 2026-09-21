@@ -10,6 +10,8 @@ def test_settings_initialization() -> None:
     assert "postgresql+asyncpg://" in settings.ASYNC_DATABASE_URI
     assert "redis://" in settings.REDIS_URI
     assert settings.MAX_UPLOAD_SIZE_MB == 10
+    assert settings.REQUIRE_AUTHENTICATION is True
+    assert settings.CORS_ALLOW_ORIGINS == ["http://localhost:3000", "http://localhost:5173"]
 
 
 def test_custom_settings_instantiation() -> None:
@@ -19,6 +21,7 @@ def test_custom_settings_instantiation() -> None:
         POSTGRES_SERVER="test_host",
         POSTGRES_PORT=5433,
         POSTGRES_DB="test_db",
+        DATABASE_URL=None,
     )
     assert (
         custom_settings.ASYNC_DATABASE_URI

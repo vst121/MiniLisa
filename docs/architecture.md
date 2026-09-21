@@ -69,7 +69,7 @@ The API writes the upload record before publishing its workflow event. Productio
 
 The upload service enforces extension allow-listing, byte size, a `%PDF-` header, and a scanner port. JWT utilities create and verify signed access tokens, and protected routes accept Bearer tokens.
 
-The application currently permits a default demo user when no authorization header is supplied, and CORS is permissive. This supports the reference/demo flow but is not an acceptable production security posture. See the hardening checklist in the [README](../README.md#production-hardening).
+The application requires a valid JWT for protected endpoints by default, and CORS is restricted to an allow-list instead of `*`. This is the secure baseline for production use; local/demo overrides are available only when explicitly disabled in settings and not left on by default. See the hardening checklist in the [README](../README.md#production-hardening).
 
 ## Reliability and observability
 
