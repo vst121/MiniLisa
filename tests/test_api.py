@@ -42,11 +42,12 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
 
 
 def test_health_endpoint(client: TestClient):
-    response = client.get("/api/v1/health")
+    response = client.get("/api/v1/health", headers={"X-Correlation-ID": "correlation-test-123"})
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"
     assert data["app_name"] == "Procurement AI Assistant"
+    assert response.headers["X-Correlation-ID"] == "correlation-test-123"
 
 
 def test_api_upload_flow(client: TestClient):

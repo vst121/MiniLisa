@@ -190,6 +190,7 @@ class WorkflowEngine:
                 InvoiceParsedEvent(
                     invoice_id=invoice_id,
                     extracted_data=state.data.get("invoice_extraction", {}),
+                    correlation_id=event.correlation_id,
                 )
             )
         except Exception as e:
@@ -214,6 +215,7 @@ class WorkflowEngine:
                 invoice_id=invoice_id,
                 is_valid=val_output.get("is_valid", True),
                 validation_issues=val_output,
+                correlation_id=event.correlation_id,
             )
         )
 
@@ -236,6 +238,7 @@ class WorkflowEngine:
                 supplier_id=sup_output.get("supplier_id"),
                 risk_score=sup_output.get("risk_score", 0.0),
                 risk_level=sup_output.get("risk_level", "LOW"),
+                correlation_id=event.correlation_id,
             )
         )
 
@@ -257,6 +260,7 @@ class WorkflowEngine:
                 invoice_id=invoice_id,
                 price_anomaly_detected=price_output.get("has_pricing_anomalies", False),
                 details=price_output,
+                correlation_id=event.correlation_id,
             )
         )
 
@@ -279,6 +283,7 @@ class WorkflowEngine:
                 recommendation_id=f"rec-{invoice_id}",
                 action=rec_output.get("action", "NEEDS_HUMAN"),
                 confidence_score=rec_output.get("confidence_score", 0.8),
+                correlation_id=event.correlation_id,
             )
         )
 
@@ -296,7 +301,7 @@ class WorkflowEngine:
             self.save_checkpoint(invoice_id, "AWAITING_HUMAN_APPROVAL", checkpoint.state_data, InvoiceStatus.AWAITING_HUMAN_APPROVAL)
         elif action == RecommendationAction.APPROVE.value:
             logger.info(f"⚡ [AUTO-APPROVE] Invoice '{invoice_id}' approved. Executing ERP sync.")
-            await self._finalize_and_post_erp(invoice_id, checkpoint.state_data)
+            await self._finalize_and_post_erp(invoice_id, checkpoint.state_data, event.correlation_id)
         elif action == RecommendationAction.REJECT.value:
             logger.info(f"⛔ [AUTO-REJECT] Invoice '{invoice_id}' rejected.")
             self.save_checkpoint(invoice_id, "REJECTED", checkpoint.state_data, InvoiceStatus.REJECTED)
@@ -326,11 +331,13 @@ class WorkflowEngine:
         )
 
         if action_taken == RecommendationAction.APPROVE.value:
-            await self._finalize_and_post_erp(invoice_id, state_data)
+            await self._finalize_and_post_erp(invoice_id, state_data, event.correlation_id)
         else:
             self.save_checkpoint(invoice_id, "REJECTED", state_data, InvoiceStatus.REJECTED)
 
-    async def _finalize_and_post_erp(self, invoice_id: str, state_data: Dict[str, Any]) -> None:
+    async def _finalize_and_post_erp(
+        self, invoice_id: str, state_data: Dict[str, Any], correlation_id: str
+    ) -> None:
         """Post to ERP system and seal audit trail."""
         extraction = state_data.get("invoice_extraction", {})
         total_amt = extraction.get("total_amount", 350.0)
@@ -349,6 +356,7 @@ class WorkflowEngine:
             InvoiceCompletedEvent(
                 invoice_id=invoice_id,
                 erp_reference=erp_res.get("erp_reference_code", f"ERP-{invoice_id[:8]}"),
+                correlation_id=correlation_id,
             )
         )
         logger.info(f"🎉 [WORKFLOW COMPLETED] Invoice '{invoice_id}' posted to ERP ({erp_res.get('erp_reference_code')})")

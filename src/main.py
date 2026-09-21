@@ -5,7 +5,9 @@ Initializes lifespan events, CORS middleware, OpenTelemetry, and API v1 routers.
 
 from contextlib import asynccontextmanager
 import logging
-from fastapi import FastAPI
+import time
+import uuid
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.deps import get_workflow_engine
 from src.api.v1.router import api_v1_router
@@ -46,6 +48,25 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+
+@app.middleware("http")
+async def correlation_middleware(request: Request, call_next):
+    correlation_id = request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
+    request.state.correlation_id = correlation_id
+    started_at = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - started_at) * 1000
+    response.headers["X-Correlation-ID"] = correlation_id
+    logger.info(
+        "HTTP %s %s -> %s (%.2fms, correlation_id=%s)",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+        correlation_id,
+    )
+    return response
 
 # CORS Middleware
 app.add_middleware(

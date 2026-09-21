@@ -13,11 +13,34 @@ from typing import Any, Callable, Coroutine, Dict, List, Optional
 import redis.asyncio as redis
 
 from src.config.settings import settings
-from src.domain.events import BaseEvent
+from src.domain.events import (
+    BaseEvent,
+    HumanApprovedEvent,
+    InvoiceCompletedEvent,
+    InvoiceParsedEvent,
+    InvoiceUploadedEvent,
+    InvoiceValidatedEvent,
+    PricingCompletedEvent,
+    RecommendationCreatedEvent,
+    SupplierCheckedEvent,
+)
 
 logger = logging.getLogger(__name__)
 
 EventHandler = Callable[[BaseEvent], Coroutine[Any, Any, None]]
+EVENT_MODELS = {
+    event_type: event_model
+    for event_type, event_model in (
+        ("InvoiceUploaded", InvoiceUploadedEvent),
+        ("InvoiceParsed", InvoiceParsedEvent),
+        ("InvoiceValidated", InvoiceValidatedEvent),
+        ("SupplierChecked", SupplierCheckedEvent),
+        ("PricingCompleted", PricingCompletedEvent),
+        ("RecommendationCreated", RecommendationCreatedEvent),
+        ("HumanApproved", HumanApprovedEvent),
+        ("InvoiceCompleted", InvoiceCompletedEvent),
+    )
+}
 
 
 async def _dispatch_with_retries(handler: EventHandler, event: BaseEvent) -> Exception | None:
@@ -138,6 +161,45 @@ class RedisStreamsEventBus(EventBus):
         if event_type not in self._handlers:
             self._handlers[event_type] = []
         self._handlers[event_type].append(handler)
+
+    async def consume_once(self, event_type: str) -> int:
+        """Process one Redis consumer-group batch for an event type."""
+        stream_key = f"events:{event_type}"
+        try:
+            await self._redis.xgroup_create(
+                stream_key,
+                settings.REDIS_CONSUMER_GROUP,
+                id="0",
+                mkstream=True,
+            )
+        except redis.ResponseError as exc:
+            if "BUSYGROUP" not in str(exc):
+                raise
+
+        batches = await self._redis.xreadgroup(
+            settings.REDIS_CONSUMER_GROUP,
+            settings.REDIS_CONSUMER_NAME,
+            streams={stream_key: ">"},
+            count=10,
+            block=settings.REDIS_STREAM_BLOCK_MS,
+        )
+        processed = 0
+        event_model = EVENT_MODELS[event_type]
+        for _, entries in batches or []:
+            for message_id, values in entries:
+                event = event_model.model_validate(json.loads(values["payload"]))
+                error = None
+                for handler in self._handlers.get(event_type, []):
+                    error = await _dispatch_with_retries(handler, event)
+                    if error:
+                        await self._redis.xadd(
+                            f"dead-letter:{event_type}",
+                            {**values, "error": str(error), "dead_letter_reason": "handler_retries_exhausted"},
+                        )
+                        break
+                await self._redis.xack(stream_key, settings.REDIS_CONSUMER_GROUP, message_id)
+                processed += 1
+        return processed
 
 
 def get_event_bus() -> EventBus:

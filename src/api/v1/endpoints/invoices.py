@@ -5,7 +5,7 @@ Invoice API Endpoints: Upload and Retrieval.
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.deps import get_current_user, get_db_session, get_workflow_engine
 from src.auth.jwt import TokenData
@@ -27,6 +27,7 @@ router = APIRouter(tags=["Invoices"])
     description="Uploads a PDF invoice, performs security validation, saves to storage, and initiates the event-driven AI workflow.",
 )
 async def upload_invoice(
+    request: Request,
     file: UploadFile = File(...),
     current_user: TokenData = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
@@ -61,6 +62,7 @@ async def upload_invoice(
         invoice_id=invoice_id,
         file_path=str(saved_path),
         file_name=filename,
+        correlation_id=request.state.correlation_id,
     )
     await workflow_engine.event_bus.publish(upload_event)
 

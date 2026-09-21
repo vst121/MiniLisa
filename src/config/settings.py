@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     EVENT_BUS_TYPE: Literal["redis", "memory"] = "memory"
     EVENT_MAX_RETRIES: int = 3
     EVENT_RETRY_DELAY_SECONDS: float = 0.1
+    REDIS_CONSUMER_GROUP: str = "procurement-workers"
+    REDIS_CONSUMER_NAME: str = "worker-1"
+    REDIS_STREAM_BLOCK_MS: int = 5000
 
     @computed_field  # type: ignore[prop-decorator]
     @property

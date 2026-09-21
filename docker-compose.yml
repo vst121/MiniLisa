@@ -22,6 +22,9 @@ services:
       - EVENT_BUS_TYPE=redis
       - EVENT_MAX_RETRIES=${EVENT_MAX_RETRIES:-3}
       - EVENT_RETRY_DELAY_SECONDS=${EVENT_RETRY_DELAY_SECONDS:-0.1}
+      - REDIS_CONSUMER_GROUP=${REDIS_CONSUMER_GROUP:-procurement-workers}
+      - REDIS_CONSUMER_NAME=${REDIS_CONSUMER_NAME:-worker-1}
+      - REDIS_STREAM_BLOCK_MS=${REDIS_STREAM_BLOCK_MS:-5000}
       - LLM_PROVIDER=${LLM_PROVIDER:-openrouter}
       - LLM_MODEL=${LLM_MODEL:-google/gemma-4-26b-a4b-it:free}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-openai/text-embedding-3-small}
