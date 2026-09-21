@@ -3,10 +3,13 @@ Event-Driven Workflow Engine with Checkpointing and Human-in-the-Loop support.
 Executes document processing, agent pipeline, state checkpointing, pause/resume, and ERP posting.
 """
 
-from dataclasses import dataclass, field
+import json
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 import logging
+from pathlib import Path
 from typing import Any, Dict, Optional
+
 from src.agents.base import AgentState
 from src.agents.impl import (
     InvoiceAgent,
@@ -27,6 +30,7 @@ from src.domain.events import (
     RecommendationCreatedEvent,
     SupplierCheckedEvent,
 )
+from src.config.settings import settings
 from src.events.event_bus import EventBus, get_event_bus
 from src.infrastructure.pdf_parser import DocumentParser
 from src.tools.impl import ERPConnectorTool, StoreAuditTool
@@ -50,6 +54,8 @@ class WorkflowEngine:
     def __init__(self, event_bus: Optional[EventBus] = None) -> None:
         self.event_bus = event_bus or get_event_bus()
         self.checkpoints: Dict[str, WorkflowCheckpoint] = {}
+        self.checkpoint_path = settings.WORKFLOW_CHECKPOINT_DIR / "workflow_checkpoints.json"
+        self._load_checkpoints()
 
         # Instantiate agents
         self.invoice_agent = InvoiceAgent()
@@ -62,15 +68,57 @@ class WorkflowEngine:
         self.erp_tool = ERPConnectorTool()
         self.audit_tool = StoreAuditTool()
 
+    def _load_checkpoints(self) -> None:
+        """Restore workflow checkpoints from disk so the process is not the only source of truth."""
+        if not self.checkpoint_path.exists():
+            self.checkpoints = {}
+            return
+
+        try:
+            payload = json.loads(self.checkpoint_path.read_text(encoding="utf-8"))
+            checkpoints = payload.get("checkpoints", {})
+            self.checkpoints = {
+                invoice_id: WorkflowCheckpoint(
+                    invoice_id=item["invoice_id"],
+                    current_step=item["current_step"],
+                    state_data=item.get("state_data", {}),
+                    status=InvoiceStatus(item["status"]),
+                    updated_at=datetime.fromisoformat(item["updated_at"]),
+                )
+                for invoice_id, item in checkpoints.items()
+            }
+        except (json.JSONDecodeError, TypeError, ValueError, KeyError):
+            logger.warning("Checkpoint file was unreadable; starting with empty checkpoint set.")
+            self.checkpoints = {}
+
+    def _persist_checkpoints(self) -> None:
+        """Persist checkpoints to durable JSON storage for local production-safe recovery."""
+        payload = {
+            "checkpoints": {
+                invoice_id: {
+                    "invoice_id": cp.invoice_id,
+                    "current_step": cp.current_step,
+                    "state_data": cp.state_data,
+                    "status": cp.status.value,
+                    "updated_at": cp.updated_at.isoformat(),
+                }
+                for invoice_id, cp in self.checkpoints.items()
+            }
+        }
+        self.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        self.checkpoint_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+
     def save_checkpoint(self, invoice_id: str, step: str, state_data: Dict[str, Any], status: InvoiceStatus) -> None:
-        """Save step checkpoint snapshot."""
+        """Save step checkpoint snapshot and persist it to disk."""
         logger.info(f"💾 [CHECKPOINT] Invoice '{invoice_id}' at step '{step}' with status '{status.value}'")
-        self.checkpoints[invoice_id] = WorkflowCheckpoint(
+        checkpoint = WorkflowCheckpoint(
             invoice_id=invoice_id,
             current_step=step,
             state_data=state_data,
             status=status,
         )
+        self.checkpoints[invoice_id] = checkpoint
+        self._persist_checkpoints()
 
     def get_checkpoint(self, invoice_id: str) -> Optional[WorkflowCheckpoint]:
         """Retrieve stored checkpoint snapshot."""

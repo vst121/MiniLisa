@@ -8,8 +8,10 @@ from abc import ABC, abstractmethod
 import asyncio
 import json
 import logging
-from typing import Any, Callable, Coroutine, Dict, List
+from typing import Any, Callable, Coroutine, Dict, List, Optional
+
 import redis.asyncio as redis
+
 from src.config.settings import settings
 from src.domain.events import BaseEvent
 

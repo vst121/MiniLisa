@@ -46,3 +46,5 @@ htmlcov/
 # App Uploads & Temp Storage
 storage/uploads/*
 !storage/uploads/.gitkeep
+storage/checkpoints/*
+!storage/checkpoints/.gitkeep

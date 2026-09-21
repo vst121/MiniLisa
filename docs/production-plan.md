@@ -1,0 +1,103 @@
+# Production readiness plan for MiniLisa
+
+## Goal
+
+Prepare the application for a safe production handoff and future deployment while keeping local development usable on Python 3.12 and a local Ollama-backed model setup.
+
+## Current baseline
+
+- Python target: 3.12
+- App stack: FastAPI + SQLAlchemy + Redis + LiteLLM
+- Local AI model path: Ollama via LiteLLM model names such as `ollama_chat/llama3.1:8b` and `ollama/nomic-embed-text`
+- The repo is intended to be GitHub-ready and continues from another station without requiring a full environment rebuild
+
+## Immediate production actions
+
+### 1. Model and AI configuration
+
+- Use Ollama as the default local model provider for development and staging.
+- Do not rely on OpenAI API keys in local setups unless explicitly configured.
+- Add explicit model health checks for:
+  - chat model availability,
+  - embedding model availability,
+  - timeouts and retry budgets,
+  - fallback behavior when Ollama is unreachable.
+
+### 2. Security hardening
+
+- Require JWT authentication for all protected endpoints by default.
+- Remove or gate any silent fallback to a demo user when no auth header is present.
+- Keep CORS restricted to an allow-list, never `*` in production.
+- Store runtime secrets in a proper secret manager, not in committed files.
+- Keep upload validation active: extension check, size check, header validation, malware scan integration, and quarantine workflow.
+
+### 3. Data and workflow durability
+
+- Move workflow state away from process-memory-only storage.
+- Use a durable checkpoint table or persisted state store.
+- Use an outbox pattern so database writes and event publication remain consistent.
+- Add event consumer groups and dead-letter handling for Redis Streams or worker queues.
+- Make ERP posting and human approval actions idempotent.
+
+### 4. Reliability and operations
+
+- Add retry budgets for LLM calls and external system calls.
+- Add dead-letter queues and alerting on repeated failures.
+- Track correlation IDs end-to-end across the API, workflow engine, tools, and external adapters.
+- Add structured logging and key metrics: command latency, queue lag, approval rate, rejection rate, failure rate, and LLM cost.
+
+### 5. Data model and migrations
+
+- Use Alembic migrations for schema changes instead of relying on `create_all()` in startup.
+- Add backup and restore validation procedures.
+- Define retention policies for invoices, audit logs, and uploaded artifacts.
+
+### 6. Deployment topology
+
+- Separate API and worker processes.
+- Use managed PostgreSQL and Redis in non-local environments.
+- Place the API behind TLS termination and a reverse proxy or load balancer.
+- Run containers as non-root users and enforce resource limits.
+
+## Recommended rollout order
+
+1. Stabilize local config and model connectivity with Ollama.
+2. Enforce auth and secure defaults.
+3. Persist checkpoints and event outbox.
+4. Add observability and retries.
+5. Introduce production deployment environment and secret management.
+6. Run smoke tests and production security review before opening to users.
+
+## Handover notes for the next station
+
+- The project is intentionally left in a GitHub-safe state, not a live-production deployment state.
+- The next station should focus on: durable workflow storage, production deployment configuration, and Ollama connectivity validation.
+- Before production release, review environment variables and secret rotation for all non-local credentials.
+
+## Local Ollama configuration
+
+Example environment settings for local development:
+
+```env
+OPENAI_API_KEY=
+LLM_MODEL=ollama_chat/llama3.1:8b
+EMBEDDING_MODEL=ollama/nomic-embed-text
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+Confirm the model is available with:
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+## Exit criteria for the next phase
+
+The next phase is ready when all of the following are true:
+
+- API starts without demo auth fallback,
+- local Ollama chat and embedding endpoints are reachable,
+- workflow state persists across restarts,
+- queue/event reliability is implemented,
+- CI tests pass in the chosen environment,
+- secrets are managed outside the repository.

@@ -3,9 +3,12 @@ FastAPI Dependency Injection Module.
 """
 
 from typing import AsyncGenerator, Optional
+
 from fastapi import Depends, HTTPException, Header, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.auth.jwt import TokenData, decode_access_token
+from src.config.settings import settings
 from src.events.event_bus import EventBus, get_event_bus
 from src.infrastructure.database import get_db_session
 from src.repositories.audit_repository import AuditRepository
@@ -28,14 +31,25 @@ def get_workflow_engine() -> WorkflowEngine:
 async def get_current_user(authorization: Optional[str] = Header(None)) -> TokenData:
     """Dependency enforcing JWT authentication on protected API endpoints."""
     if not authorization:
-        # Fallback default user for easy testing/demo if auth header omitted
-        return TokenData(username="procurement_admin", role="admin")
+        if not settings.REQUIRE_AUTHENTICATION:
+            return TokenData(username="local-dev-user", role="admin")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header is required; no demo fallback is allowed in production.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     try:
-        scheme, token = authorization.split()
-        if scheme.lower() != "bearer":
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth scheme")
+        scheme, token = authorization.split(maxsplit=1)
+        if scheme.lower() != "bearer" or not token:
+            raise ValueError("Authorization header must use Bearer scheme")
         return decode_access_token(token)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Could not validate credentials: {e}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
