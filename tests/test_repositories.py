@@ -11,6 +11,7 @@ from src.models.supplier import SupplierModel
 from src.repositories.invoice_repository import InvoiceRepository
 from src.repositories.supplier_repository import SupplierRepository
 from src.repositories.outbox_repository import OutboxRepository
+from src.events.outbox_publisher import publish_pending_events
 
 
 @pytest.fixture
@@ -88,3 +89,35 @@ async def test_outbox_repository_enqueue_publish_and_failure(async_session: Asyn
 
     await repo.mark_published(event)
     assert await repo.get_pending() == []
+
+
+@pytest.mark.asyncio
+async def test_publish_pending_events_replays_event(async_session: AsyncSession):
+    repo = OutboxRepository(async_session)
+    await repo.enqueue(
+        {
+            "event_id": "evt-outbox-replay",
+            "event_type": "InvoiceUploaded",
+            "correlation_id": "corr-outbox-replay",
+            "payload": {
+                "event_id": "evt-outbox-replay",
+                "event_type": "InvoiceUploaded",
+                "correlation_id": "corr-outbox-replay",
+                "invoice_id": "inv-replay",
+                "file_path": "mock.pdf",
+                "file_name": "mock.pdf",
+            },
+        }
+    )
+    await async_session.commit()
+
+    class RecordingBus:
+        def __init__(self):
+            self.events = []
+
+        async def publish(self, event):
+            self.events.append(event)
+
+    bus = RecordingBus()
+    assert await publish_pending_events(async_session, bus) == 1
+    assert bus.events[0].invoice_id == "inv-replay"

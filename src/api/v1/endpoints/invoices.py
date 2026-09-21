@@ -15,6 +15,7 @@ from src.config.settings import settings
 from src.domain.entities import InvoiceStatus
 from src.domain.events import InvoiceUploadedEvent
 from src.models.invoice import InvoiceModel
+from src.repositories.outbox_repository import OutboxRepository
 from src.schemas.invoice import InvoiceDetailResponse, InvoiceItemSchema, InvoiceUploadResponse
 
 router = APIRouter(tags=["Invoices"])
@@ -56,16 +57,26 @@ async def upload_invoice(
         vat_amount=0.0,
     )
     session.add(db_invoice)
-    await session.commit()
-
-    # Trigger event-driven workflow
     upload_event = InvoiceUploadedEvent(
         invoice_id=invoice_id,
         file_path=str(saved_path),
         file_name=filename,
         correlation_id=request.state.correlation_id,
     )
+    outbox_record = await OutboxRepository(session).enqueue(
+        {
+            "event_id": upload_event.event_id,
+            "event_type": upload_event.event_type,
+            "correlation_id": upload_event.correlation_id,
+            "payload": upload_event.model_dump(mode="json"),
+        }
+    )
+    await session.commit()
+
+    # Publish after the invoice and outbox record are committed.
     await workflow_engine.event_bus.publish(upload_event)
+    await OutboxRepository(session).mark_published(outbox_record)
+    await session.commit()
 
     return InvoiceUploadResponse(
         invoice_id=invoice_id,

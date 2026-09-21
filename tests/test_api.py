@@ -20,7 +20,7 @@ from tests.fakes import DeterministicLLMClient
 
 
 @pytest.fixture
-def client(tmp_path: Path) -> Generator[TestClient, None, None]:
+def client(tmp_path: Path) -> Generator[tuple[TestClient, AsyncMock], None, None]:
     """Provide a fully isolated API client without Postgres or Redis."""
     session = AsyncMock()
     workflow_engine = WorkflowEngine(event_bus=InMemoryEventBus())
@@ -35,14 +35,15 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_db_session] = override_db_session
     app.dependency_overrides[get_workflow_engine] = lambda: workflow_engine
     test_client = TestClient(app)
-    yield test_client
+    yield test_client, session
     test_client.close()
     app.dependency_overrides.clear()
     settings.UPLOAD_DIR = original_upload_dir
 
 
-def test_health_endpoint(client: TestClient):
-    response = client.get("/api/v1/health", headers={"X-Correlation-ID": "correlation-test-123"})
+def test_health_endpoint(client: tuple[TestClient, AsyncMock]):
+    test_client, _ = client
+    response = test_client.get("/api/v1/health", headers={"X-Correlation-ID": "correlation-test-123"})
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"
@@ -50,7 +51,8 @@ def test_health_endpoint(client: TestClient):
     assert response.headers["X-Correlation-ID"] == "correlation-test-123"
 
 
-def test_api_upload_flow(client: TestClient):
+def test_api_upload_flow(client: tuple[TestClient, AsyncMock]):
+    test_client, session = client
     auth_headers = {
         "Authorization": f"Bearer {create_access_token({'sub': 'procurement_manager', 'role': 'admin'})}"
     }
@@ -65,27 +67,28 @@ def test_api_upload_flow(client: TestClient):
     with patch(
         "src.workflows.workflow_engine.DocumentParser.parse_pdf", return_value=parsed_document
     ):
-        upload_res = client.post("/api/v1/upload", files=file_payload, headers=auth_headers)
+        upload_res = test_client.post("/api/v1/upload", files=file_payload, headers=auth_headers)
     assert upload_res.status_code == 202
     data = upload_res.json()
     invoice_id = data["invoice_id"]
     assert invoice_id is not None
     assert data["status"] == "UPLOADED"
+    assert session.add.call_count >= 2
 
     # GET /invoice/{id}
-    inv_res = client.get(f"/api/v1/invoice/{invoice_id}", headers=auth_headers)
+    inv_res = test_client.get(f"/api/v1/invoice/{invoice_id}", headers=auth_headers)
     assert inv_res.status_code == 200
     inv_data = inv_res.json()
     assert inv_data["id"] == invoice_id
 
     # GET /recommendation/{id}
-    rec_res = client.get(f"/api/v1/recommendation/{invoice_id}", headers=auth_headers)
+    rec_res = test_client.get(f"/api/v1/recommendation/{invoice_id}", headers=auth_headers)
     assert rec_res.status_code == 200
     rec_data = rec_res.json()
     assert rec_data["invoice_id"] == invoice_id
 
     # POST /approve
-    approve_res = client.post(
+    approve_res = test_client.post(
         "/api/v1/approve",
         json={
             "invoice_id": invoice_id,
@@ -100,20 +103,22 @@ def test_api_upload_flow(client: TestClient):
     assert approve_data["invoice_id"] == invoice_id
 
 
-def test_api_rejects_non_pdf_upload(client: TestClient):
+def test_api_rejects_non_pdf_upload(client: tuple[TestClient, AsyncMock]):
+    test_client, _ = client
     auth_headers = {
         "Authorization": f"Bearer {create_access_token({'sub': 'procurement_manager', 'role': 'admin'})}"
     }
     file_payload = {"file": ("invoice.txt", BytesIO(b"not a pdf"), "text/plain")}
 
-    response = client.post("/api/v1/upload", files=file_payload, headers=auth_headers)
+    response = test_client.post("/api/v1/upload", files=file_payload, headers=auth_headers)
 
     assert response.status_code == 400
     assert "Invalid file extension" in response.json()["detail"]
 
 
-def test_api_rejects_invalid_bearer_token(client: TestClient):
-    response = client.get(
+def test_api_rejects_invalid_bearer_token(client: tuple[TestClient, AsyncMock]):
+    test_client, _ = client
+    response = test_client.get(
         "/api/v1/invoice/does-not-matter",
         headers={"Authorization": "Bearer not-a-valid-token"},
     )
@@ -122,7 +127,8 @@ def test_api_rejects_invalid_bearer_token(client: TestClient):
     assert "Could not validate credentials" in response.json()["detail"]
 
 
-def test_api_sanitizes_uploaded_filename(client: TestClient):
+def test_api_sanitizes_uploaded_filename(client: tuple[TestClient, AsyncMock]):
+    test_client, _ = client
     auth_headers = {
         "Authorization": f"Bearer {create_access_token({'sub': 'procurement_manager', 'role': 'admin'})}"
     }
@@ -135,7 +141,7 @@ def test_api_sanitizes_uploaded_filename(client: TestClient):
     with patch(
         "src.workflows.workflow_engine.DocumentParser.parse_pdf", return_value=parsed_document
     ):
-        response = client.post("/api/v1/upload", files=file_payload, headers=auth_headers)
+        response = test_client.post("/api/v1/upload", files=file_payload, headers=auth_headers)
 
     assert response.status_code == 202
     assert response.json()["file_name"] == "invoice.pdf"
