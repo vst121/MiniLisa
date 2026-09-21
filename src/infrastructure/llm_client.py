@@ -21,6 +21,57 @@ class LLMClient:
         self.api_base = settings.LLM_BASE_URL
         self.embedding_model = settings.EMBEDDING_MODEL
 
+    def _request_options(self) -> dict[str, Any]:
+        return {
+            "api_key": self.api_key,
+            "api_base": self.api_base,
+            "custom_llm_provider": settings.LLM_PROVIDER,
+            "num_retries": settings.LLM_MAX_RETRIES,
+            "timeout": settings.LLM_TIMEOUT,
+        }
+
+    async def check_health(self) -> dict[str, Any]:
+        """Probe chat and embedding providers without raising provider errors."""
+        result: dict[str, Any] = {
+            "provider": settings.LLM_PROVIDER,
+            "chat_model": self.model_name,
+            "embedding_model": self.embedding_model,
+            "chat": "unhealthy",
+            "embeddings": "unhealthy",
+        }
+
+        try:
+            await acompletion(
+                model=self.model_name,
+                messages=[{"role": "user", "content": "Reply with OK."}],
+                max_tokens=8,
+                **self._request_options(),
+            )
+            result["chat"] = "healthy"
+        except Exception as exc:
+            logger.warning("[LLMClient] Chat health check failed: %s", exc)
+            result["chat_error"] = str(exc)
+
+        try:
+            await aembedding(
+                model=self.embedding_model,
+                input=["health check"],
+                **self._request_options(),
+            )
+            result["embeddings"] = "healthy"
+        except Exception as exc:
+            logger.warning("[LLMClient] Embedding health check failed: %s", exc)
+            result["embeddings_error"] = str(exc)
+
+        result["status"] = (
+            "healthy"
+            if result["chat"] == "healthy" and result["embeddings"] == "healthy"
+            else "degraded"
+            if result["chat"] == "healthy" or result["embeddings"] == "healthy"
+            else "unhealthy"
+        )
+        return result
+
     async def generate_structured(
         self,
         messages: List[Dict[str, str]],
@@ -38,10 +89,7 @@ class LLMClient:
                 response_format=response_schema,
                 temperature=temperature,
                 max_tokens=settings.LLM_MAX_TOKENS,
-                api_key=self.api_key,
-                api_base=self.api_base,
-                custom_llm_provider=settings.LLM_PROVIDER,
-                timeout=settings.LLM_TIMEOUT,
+                **self._request_options(),
             )
             content = response.choices[0].message.content
             # Parse structured content into Pydantic model
@@ -66,10 +114,7 @@ class LLMClient:
                 response_format={"type": "json_object"},
                 temperature=temperature,
                 max_tokens=settings.LLM_MAX_TOKENS,
-                api_key=self.api_key,
-                api_base=self.api_base,
-                custom_llm_provider=settings.LLM_PROVIDER,
-                timeout=settings.LLM_TIMEOUT,
+                **self._request_options(),
             )
             content = response.choices[0].message.content
             return response_schema.model_validate_json(content)
@@ -80,9 +125,7 @@ class LLMClient:
             response = await aembedding(
                 model=self.embedding_model,
                 input=[text],
-                api_key=self.api_key,
-                api_base=self.api_base,
-                custom_llm_provider=settings.LLM_PROVIDER,
+                **self._request_options(),
             )
             return response.data[0]["embedding"]
         except Exception as e:

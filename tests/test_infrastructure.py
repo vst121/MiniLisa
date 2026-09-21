@@ -57,6 +57,53 @@ async def test_llm_client_structured_output_mock() -> None:
     assert isinstance(res, ValidationResult)
 
 
+@pytest.mark.asyncio
+async def test_llm_client_health_check_probes_chat_and_embeddings() -> None:
+    client = LLMClient()
+
+    async def mock_completion(**kwargs):
+        assert kwargs["timeout"] == 60.0
+        assert kwargs["num_retries"] == 3
+        return SimpleNamespace()
+
+    async def mock_embedding(**kwargs):
+        assert kwargs["timeout"] == 60.0
+        assert kwargs["num_retries"] == 3
+        return SimpleNamespace()
+
+    with (
+        patch("src.infrastructure.llm_client.acompletion", new=mock_completion),
+        patch("src.infrastructure.llm_client.aembedding", new=mock_embedding),
+    ):
+        result = await client.check_health()
+
+    assert result["status"] == "healthy"
+    assert result["chat"] == "healthy"
+    assert result["embeddings"] == "healthy"
+
+
+@pytest.mark.asyncio
+async def test_llm_client_health_check_reports_degraded_provider() -> None:
+    client = LLMClient()
+
+    async def mock_completion(**_kwargs):
+        return SimpleNamespace()
+
+    async def mock_embedding(**_kwargs):
+        raise RuntimeError("embedding provider unavailable")
+
+    with (
+        patch("src.infrastructure.llm_client.acompletion", new=mock_completion),
+        patch("src.infrastructure.llm_client.aembedding", new=mock_embedding),
+    ):
+        result = await client.check_health()
+
+    assert result["status"] == "degraded"
+    assert result["chat"] == "healthy"
+    assert result["embeddings"] == "unhealthy"
+    assert "embedding provider unavailable" in result["embeddings_error"]
+
+
 def test_document_parser_nonexistent_file() -> None:
     with pytest.raises(FileNotFoundError):
         DocumentParser.parse_pdf(Path("non_existent_file_12345.pdf"))

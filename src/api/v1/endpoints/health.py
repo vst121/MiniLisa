@@ -4,6 +4,7 @@ Health Check API Endpoint.
 
 from fastapi import APIRouter
 from src.config.settings import settings
+from src.infrastructure.llm_client import LLMClient
 
 router = APIRouter(tags=["Health"])
 
@@ -16,3 +17,9 @@ async def health_check():
         "environment": settings.ENV,
         "event_bus": settings.EVENT_BUS_TYPE,
     }
+
+
+@router.get("/health/llm", summary="LLM Provider Health Check")
+async def llm_health_check():
+    """Probe the configured OpenRouter chat and embedding models."""
+    return await LLMClient().check_health()
