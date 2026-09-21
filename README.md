@@ -169,8 +169,10 @@ src/
   schemas/         API and structured-output contracts
   tools/           Agent tool adapters
   workflows/       Event-driven orchestration and approval resume
-tests/             Unit and isolated integration tests
-docs/              Architecture and operational design notes
+  outbox_worker.py Transactional outbox publisher entrypoint
+  worker.py        Redis Streams workflow worker entrypoint
+  tests/             Unit and isolated integration tests
+  docs/              Architecture and operational design notes
 ```
 
 ## Production hardening

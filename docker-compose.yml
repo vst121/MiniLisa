@@ -75,7 +75,35 @@ services:
       - ./storage/checkpoints:/app/storage/checkpoints
     restart: unless-stopped
 
-  # 3. PostgreSQL with pgvector extension
+  # 3. Outbox Publisher Worker
+  outbox-publisher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: procurement_ai_outbox_publisher
+    command: ["python", "-m", "src.outbox_worker"]
+    env_file:
+      - .env
+    environment:
+      - ENV=development
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - EVENT_BUS_TYPE=redis
+      - EVENT_LOCAL_DISPATCH=true
+      - REDIS_CONSUMER_GROUP=${REDIS_CONSUMER_GROUP:-procurement-workers}
+      - REDIS_CONSUMER_NAME=${REDIS_CONSUMER_NAME:-outbox-publisher}
+      - OUTBOX_PUBLISHER_INTERVAL_SECONDS=${OUTBOX_PUBLISHER_INTERVAL_SECONDS:-1.0}
+      - OUTBOX_PUBLISHER_LIMIT=${OUTBOX_PUBLISHER_LIMIT:-100}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # 4. PostgreSQL with pgvector extension
   postgres:
     image: pgvector/pgvector:pg16
     container_name: procurement_ai_postgres

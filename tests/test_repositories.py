@@ -2,6 +2,7 @@
 Unit tests for Database Models and Repositories using SQLite in-memory async engine.
 """
 
+import asyncio
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -121,3 +122,112 @@ async def test_publish_pending_events_replays_event(async_session: AsyncSession)
     bus = RecordingBus()
     assert await publish_pending_events(async_session, bus) == 1
     assert bus.events[0].invoice_id == "inv-replay"
+
+
+@pytest.mark.asyncio
+async def test_outbox_worker_drains_pending_and_stops_on_signal():
+    from src.outbox_worker import run_outbox_worker
+    from src.events.event_bus import EventBus
+
+    test_engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    session_maker = async_sessionmaker(
+        bind=test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    async with session_maker() as session:
+        await OutboxRepository(session).enqueue(
+            {
+                "event_id": "evt-worker-1",
+                "event_type": "InvoiceUploaded",
+                "correlation_id": "corr-worker-1",
+                "payload": {
+                    "event_id": "evt-worker-1",
+                    "event_type": "InvoiceUploaded",
+                    "correlation_id": "corr-worker-1",
+                    "invoice_id": "inv-worker-1",
+                    "file_path": "mock.pdf",
+                    "file_name": "mock.pdf",
+                },
+            }
+        )
+        await session.commit()
+
+    class RecordingBus(EventBus):
+        def __init__(self, stop_event):
+            self.events = []
+            self._stop_event = stop_event
+
+        async def publish(self, event):
+            self.events.append(event)
+            self._stop_event.set()
+
+        async def subscribe(self, event_type, handler):
+            pass
+
+    stop_event = asyncio.Event()
+    bus = RecordingBus(stop_event)
+
+    await run_outbox_worker(
+        session_maker=session_maker,
+        event_bus=bus,
+        stop_event=stop_event,
+    )
+
+    assert len(bus.events) == 1
+    assert bus.events[0].invoice_id == "inv-worker-1"
+
+    async with session_maker() as session:
+        remaining = await OutboxRepository(session).get_pending()
+    assert remaining == []
+
+    await test_engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_outbox_worker_is_idempotent_against_already_published_records():
+    from src.outbox_worker import run_outbox_worker
+    from src.events.event_bus import EventBus
+
+    test_engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    session_maker = async_sessionmaker(
+        bind=test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    class RecordingBus(EventBus):
+        def __init__(self, stop_event):
+            self.events = []
+            self._stop_event = stop_event
+
+        async def publish(self, event):
+            self.events.append(event)
+            self._stop_event.set()
+
+        async def subscribe(self, event_type, handler):
+            pass
+
+    stop_event = asyncio.Event()
+    bus = RecordingBus(stop_event)
+
+    async def stop_after_delay():
+        await asyncio.sleep(0.2)
+        stop_event.set()
+
+    stop_task = asyncio.create_task(stop_after_delay())
+    try:
+        await run_outbox_worker(
+            session_maker=session_maker,
+            event_bus=bus,
+            stop_event=stop_event,
+        )
+    finally:
+        stop_task.cancel()
+
+    assert bus.events == []
+
+    await test_engine.dispose()

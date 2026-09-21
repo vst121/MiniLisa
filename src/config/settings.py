@@ -138,6 +138,10 @@ class Settings(BaseSettings):
     UPLOAD_DIR: Path = Path("storage/uploads")
     WORKFLOW_CHECKPOINT_DIR: Path = Path("storage/checkpoints")
 
+    # Outbox Publisher Worker
+    OUTBOX_PUBLISHER_INTERVAL_SECONDS: float = 1.0
+    OUTBOX_PUBLISHER_LIMIT: int = 100
+
     def create_upload_dir(self) -> None:
         """Ensure upload directory exists on startup."""
         self.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
