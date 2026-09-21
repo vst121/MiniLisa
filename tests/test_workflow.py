@@ -112,3 +112,26 @@ def test_workflow_checkpoint_survives_engine_restart(tmp_path):
         assert checkpoint.state_data["invoice_extraction"]["total_amount"] == 450.0
     finally:
         settings.WORKFLOW_CHECKPOINT_DIR = original_checkpoint_dir
+
+
+@pytest.mark.asyncio
+async def test_event_bus_retries_and_dead_letters_failed_handlers():
+    bus = InMemoryEventBus()
+    attempts = 0
+
+    async def failing_handler(_event):
+        nonlocal attempts
+        attempts += 1
+        raise RuntimeError("handler unavailable")
+
+    await bus.subscribe("InvoiceUploaded", failing_handler)
+    await bus.publish(
+        InvoiceUploadedEvent(
+            invoice_id="inv-dead-letter-500",
+            file_path="mock.pdf",
+            file_name="mock.pdf",
+        )
+    )
+
+    assert attempts == settings.EVENT_MAX_RETRIES + 1
+    assert len(bus.dead_letters) == 1

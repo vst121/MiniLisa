@@ -20,6 +20,28 @@ logger = logging.getLogger(__name__)
 EventHandler = Callable[[BaseEvent], Coroutine[Any, Any, None]]
 
 
+async def _dispatch_with_retries(handler: EventHandler, event: BaseEvent) -> Exception | None:
+    """Run a handler with a bounded retry budget and return the final error."""
+    last_error: Exception | None = None
+    for attempt in range(settings.EVENT_MAX_RETRIES + 1):
+        try:
+            await handler(event)
+            return None
+        except Exception as exc:
+            last_error = exc
+            if attempt < settings.EVENT_MAX_RETRIES:
+                logger.warning(
+                    "Event handler retry %s/%s for %s (correlation_id=%s): %s",
+                    attempt + 1,
+                    settings.EVENT_MAX_RETRIES,
+                    event.event_type,
+                    event.correlation_id,
+                    exc,
+                )
+                await asyncio.sleep(settings.EVENT_RETRY_DELAY_SECONDS)
+    return last_error
+
+
 class EventBus(ABC):
     """Abstract Event Bus Port."""
 
@@ -39,15 +61,26 @@ class InMemoryEventBus(EventBus):
 
     def __init__(self) -> None:
         self._handlers: Dict[str, List[EventHandler]] = {}
+        self.dead_letters: List[BaseEvent] = []
 
     async def publish(self, event: BaseEvent) -> None:
-        logger.info(f"[InMemoryEventBus] Published event: {event.event_type} (ID: {event.event_id})")
+        logger.info(
+            "[InMemoryEventBus] Published event: %s (ID: %s, correlation_id=%s)",
+            event.event_type,
+            event.event_id,
+            event.correlation_id,
+        )
         handlers = self._handlers.get(event.event_type, [])
         for handler in handlers:
-            try:
-                await handler(event)
-            except Exception as e:
-                logger.error(f"[InMemoryEventBus] Error in handler {handler.__name__} for event {event.event_type}: {e}")
+            error = await _dispatch_with_retries(handler, event)
+            if error:
+                self.dead_letters.append(event)
+                logger.error(
+                    "[InMemoryEventBus] Dead-lettered %s (correlation_id=%s): %s",
+                    event.event_type,
+                    event.correlation_id,
+                    error,
+                )
 
     async def subscribe(self, event_type: str, handler: EventHandler) -> None:
         if event_type not in self._handlers:
@@ -73,12 +106,33 @@ class RedisStreamsEventBus(EventBus):
             "payload": json.dumps(event.model_dump(mode="json")),
         }
         await self._redis.xadd(stream_key, event_data)
-        logger.info(f"[RedisStreamsEventBus] XADD to {stream_key}: {event.event_id}")
+        logger.info(
+            "[RedisStreamsEventBus] XADD to %s: %s (correlation_id=%s)",
+            stream_key,
+            event.event_id,
+            event.correlation_id,
+        )
 
         # Also trigger in-memory subscribers if running in same process
         handlers = self._handlers.get(event.event_type, [])
         for handler in handlers:
-            await handler(event)
+            error = await _dispatch_with_retries(handler, event)
+            if error:
+                dead_letter_key = f"dead-letter:{event.event_type}"
+                await self._redis.xadd(
+                    dead_letter_key,
+                    {
+                        **event_data,
+                        "error": str(error),
+                        "dead_letter_reason": "handler_retries_exhausted",
+                    },
+                )
+                logger.error(
+                    "[RedisStreamsEventBus] Dead-lettered %s (correlation_id=%s): %s",
+                    event.event_type,
+                    event.correlation_id,
+                    error,
+                )
 
     async def subscribe(self, event_type: str, handler: EventHandler) -> None:
         if event_type not in self._handlers:
