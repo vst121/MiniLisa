@@ -56,7 +56,7 @@ class Settings(BaseSettings):
 
     # Database Settings (PostgreSQL + pgvector)
     POSTGRES_SERVER: str = "localhost"
-    POSTGRES_PORT: int = 5432
+    POSTGRES_PORT: int = 5439
     POSTGRES_USER: str = "procurement_user"
     POSTGRES_PASSWORD: str = "procurement_pass"
     POSTGRES_DB: str = "procurement_ai_db"

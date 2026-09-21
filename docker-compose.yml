@@ -20,8 +20,14 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - EVENT_BUS_TYPE=redis
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-sk-proj-mock-key}
-      - LLM_MODEL=gpt-4o-mini
+      - LLM_PROVIDER=${LLM_PROVIDER:-openrouter}
+      - LLM_MODEL=${LLM_MODEL:-google/gemma-4-26b-a4b-it:free}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-openai/text-embedding-3-small}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://openrouter.ai/api/v1}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-4096}
+      - LLM_MAX_RETRIES=${LLM_MAX_RETRIES:-3}
+      - LLM_TIMEOUT=${LLM_TIMEOUT:-60}
       - LANGFUSE_HOST=http://langfuse:3000
     depends_on:
       postgres:
@@ -37,7 +43,7 @@ services:
     image: pgvector/pgvector:pg16
     container_name: procurement_ai_postgres
     ports:
-      - "5432:5432"
+      - "5439:5432"
     environment:
       - POSTGRES_USER=procurement_user
       - POSTGRES_PASSWORD=procurement_pass
@@ -73,7 +79,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://procurement_user:procurement_pass@postgres:5432/procurement_ai_db
+      - DATABASE_URL=postgresql://procurement_user:procurement_pass@postgres:5439/procurement_ai_db
       - NEXTAUTH_SECRET=secret-langfuse-key-32chars-min
       - SALT=salt-langfuse-key-32chars-min
       - NEXTAUTH_URL=http://localhost:3000

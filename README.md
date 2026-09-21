@@ -54,7 +54,7 @@ flowchart LR
    Invoke-RestMethod http://localhost:8000/api/v1/health
    ```
 
-The Compose stack provides FastAPI (`8000`), PostgreSQL with pgvector (`5432`), Redis (`6379`), and Langfuse (`3000`).
+The Compose stack provides FastAPI (`8000`), PostgreSQL with pgvector (`5439`), Redis (`6379`), and Langfuse (`3000`).
 
 ### Local development
 
