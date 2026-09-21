@@ -136,26 +136,25 @@ class RedisStreamsEventBus(EventBus):
             event.correlation_id,
         )
 
-        # Also trigger in-memory subscribers if running in same process
-        handlers = self._handlers.get(event.event_type, [])
-        for handler in handlers:
-            error = await _dispatch_with_retries(handler, event)
-            if error:
-                dead_letter_key = f"dead-letter:{event.event_type}"
-                await self._redis.xadd(
-                    dead_letter_key,
-                    {
-                        **event_data,
-                        "error": str(error),
-                        "dead_letter_reason": "handler_retries_exhausted",
-                    },
-                )
-                logger.error(
-                    "[RedisStreamsEventBus] Dead-lettered %s (correlation_id=%s): %s",
-                    event.event_type,
-                    event.correlation_id,
-                    error,
-                )
+        if settings.EVENT_LOCAL_DISPATCH:
+            handlers = self._handlers.get(event.event_type, [])
+            for handler in handlers:
+                error = await _dispatch_with_retries(handler, event)
+                if error:
+                    await self._redis.xadd(
+                        f"dead-letter:{event.event_type}",
+                        {
+                            **event_data,
+                            "error": str(error),
+                            "dead_letter_reason": "handler_retries_exhausted",
+                        },
+                    )
+                    logger.error(
+                        "[RedisStreamsEventBus] Dead-lettered %s (correlation_id=%s): %s",
+                        event.event_type,
+                        event.correlation_id,
+                        error,
+                    )
 
     async def subscribe(self, event_type: str, handler: EventHandler) -> None:
         if event_type not in self._handlers:

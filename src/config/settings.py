@@ -94,6 +94,7 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     REDIS_PASSWORD: str = ""
     EVENT_BUS_TYPE: Literal["redis", "memory"] = "memory"
+    EVENT_LOCAL_DISPATCH: bool = True
     EVENT_MAX_RETRIES: int = 3
     EVENT_RETRY_DELAY_SECONDS: float = 0.1
     REDIS_CONSUMER_GROUP: str = "procurement-workers"

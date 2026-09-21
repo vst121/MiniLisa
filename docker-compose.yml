@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # 1. FastAPI Application Service
   web:
@@ -21,6 +19,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - EVENT_BUS_TYPE=redis
+      - EVENT_LOCAL_DISPATCH=false
       - EVENT_MAX_RETRIES=${EVENT_MAX_RETRIES:-3}
       - EVENT_RETRY_DELAY_SECONDS=${EVENT_RETRY_DELAY_SECONDS:-0.1}
       - REDIS_CONSUMER_GROUP=${REDIS_CONSUMER_GROUP:-procurement-workers}
@@ -46,7 +45,37 @@ services:
       - ./storage/checkpoints:/app/storage/checkpoints
     restart: unless-stopped
 
-  # 2. PostgreSQL with pgvector extension
+  # 2. Redis Streams Workflow Worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: procurement_ai_worker
+    command: ["python", "-m", "src.worker"]
+    env_file:
+      - .env
+    environment:
+      - ENV=development
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - EVENT_BUS_TYPE=redis
+      - EVENT_LOCAL_DISPATCH=true
+      - REDIS_CONSUMER_GROUP=${REDIS_CONSUMER_GROUP:-procurement-workers}
+      - REDIS_CONSUMER_NAME=${REDIS_CONSUMER_NAME:-worker-1}
+      - REDIS_STREAM_BLOCK_MS=${REDIS_STREAM_BLOCK_MS:-5000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./storage/uploads:/app/storage/uploads
+      - ./storage/checkpoints:/app/storage/checkpoints
+    restart: unless-stopped
+
+  # 3. PostgreSQL with pgvector extension
   postgres:
     image: pgvector/pgvector:pg16
     container_name: procurement_ai_postgres
@@ -66,7 +95,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # 3. Redis & Redis Streams Event Bus
+  # 4. Redis & Redis Streams Event Bus
   redis:
     image: redis:7-alpine
     container_name: procurement_ai_redis
@@ -81,14 +110,14 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # 4. Langfuse LLM Observability
+  # 5. Langfuse LLM Observability
   langfuse:
     image: langfuse/langfuse:2
     container_name: procurement_ai_langfuse
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://procurement_user:procurement_pass@postgres:5439/procurement_ai_db
+      - DATABASE_URL=postgresql://procurement_user:procurement_pass@postgres:5432/procurement_ai_db
       - NEXTAUTH_SECRET=secret-langfuse-key-32chars-min
       - SALT=salt-langfuse-key-32chars-min
       - NEXTAUTH_URL=http://localhost:3000
