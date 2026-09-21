@@ -113,3 +113,16 @@ def test_api_rejects_invalid_bearer_token(client: TestClient):
 
     assert response.status_code == 401
     assert "Could not validate credentials" in response.json()["detail"]
+
+
+def test_api_sanitizes_uploaded_filename(client: TestClient):
+    auth_headers = {"Authorization": f"Bearer {create_access_token({'sub': 'procurement_manager', 'role': 'admin'})}"}
+    pdf_content = b"%PDF-1.4 Header\nINVOICE #99002\nTotal: 100.00"
+    file_payload = {"file": ("..\\outside\\invoice.pdf", BytesIO(pdf_content), "application/pdf")}
+
+    parsed_document = ExtractedDocument(raw_text="INVOICE #99002\nTotal: 100.00", page_count=1, tables=[])
+    with patch("src.workflows.workflow_engine.DocumentParser.parse_pdf", return_value=parsed_document):
+        response = client.post("/api/v1/upload", files=file_payload, headers=auth_headers)
+
+    assert response.status_code == 202
+    assert response.json()["file_name"] == "invoice.pdf"

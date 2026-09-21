@@ -3,6 +3,7 @@ Invoice API Endpoints: Upload and Retrieval.
 """
 
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,7 +36,7 @@ async def upload_invoice(
     file_bytes = await validate_upload_file(file)
 
     invoice_id = str(uuid.uuid4())
-    filename = file.filename or f"invoice_{invoice_id[:8]}.pdf"
+    filename = Path(file.filename or f"invoice_{invoice_id[:8]}.pdf").name
     
     # Save file to upload directory
     settings.create_upload_dir()

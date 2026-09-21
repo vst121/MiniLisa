@@ -6,7 +6,7 @@ Loads configuration from environment variables and .env file.
 from pathlib import Path
 from typing import Any, List, Literal
 
-from pydantic import Field, field_validator, computed_field
+from pydantic import Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -53,6 +53,19 @@ class Settings(BaseSettings):
                     pass
             return [item.strip() for item in text.split(",") if item.strip()]
         return value
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        if self.ENV == "production":
+            if len(self.SECRET_KEY) < 32 or "change-this" in self.SECRET_KEY.lower():
+                raise ValueError("SECRET_KEY must be a strong production secret of at least 32 characters")
+            if not self.REQUIRE_AUTHENTICATION:
+                raise ValueError("REQUIRE_AUTHENTICATION must be true in production")
+            if "*" in self.CORS_ALLOW_ORIGINS:
+                raise ValueError("CORS_ALLOW_ORIGINS cannot contain '*' in production")
+            if self.ALLOW_MOCK_VIRUS_SCANNER:
+                raise ValueError("ALLOW_MOCK_VIRUS_SCANNER must be false in production")
+        return self
 
     # Database Settings (PostgreSQL + pgvector)
     POSTGRES_SERVER: str = "localhost"
@@ -104,6 +117,7 @@ class Settings(BaseSettings):
     # Uploads & Storage
     MAX_UPLOAD_SIZE_MB: int = 10
     ALLOWED_FILE_TYPES: List[str] = Field(default_factory=lambda: ["pdf"])
+    ALLOW_MOCK_VIRUS_SCANNER: bool = True
     UPLOAD_DIR: Path = Path("storage/uploads")
     WORKFLOW_CHECKPOINT_DIR: Path = Path("storage/checkpoints")
 

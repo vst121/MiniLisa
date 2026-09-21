@@ -3,6 +3,7 @@ Unit tests for configuration settings.
 """
 
 from src.config.settings import settings, Settings
+from pydantic import ValidationError
 
 
 def test_settings_initialization() -> None:
@@ -27,3 +28,25 @@ def test_custom_settings_instantiation() -> None:
         custom_settings.ASYNC_DATABASE_URI
         == "postgresql+asyncpg://test_user:test_password@test_host:5433/test_db"
     )
+
+
+def test_production_settings_reject_placeholder_secret() -> None:
+    try:
+        Settings(ENV="production", SECRET_KEY="change-this-secret-value-that-is-too-weak")
+    except ValidationError as exc:
+        assert "SECRET_KEY" in str(exc)
+    else:
+        raise AssertionError("Weak production secret should be rejected")
+
+
+def test_production_settings_reject_disabled_authentication() -> None:
+    try:
+        Settings(
+            ENV="production",
+            SECRET_KEY="a" * 32,
+            REQUIRE_AUTHENTICATION=False,
+        )
+    except ValidationError as exc:
+        assert "REQUIRE_AUTHENTICATION" in str(exc)
+    else:
+        raise AssertionError("Disabled production authentication should be rejected")

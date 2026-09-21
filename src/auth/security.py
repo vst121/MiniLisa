@@ -42,6 +42,11 @@ async def validate_upload_file(
     3. PDF magic byte header check (%PDF-)
     4. Virus scan check
     """
+    if virus_scanner is None and not settings.ALLOW_MOCK_VIRUS_SCANNER:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Malware scanner is not configured.",
+        )
     scanner = virus_scanner or MockClamAVScanner()
 
     # 1. File extension validation

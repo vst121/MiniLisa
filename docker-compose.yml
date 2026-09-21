@@ -28,6 +28,7 @@ services:
       - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-4096}
       - LLM_MAX_RETRIES=${LLM_MAX_RETRIES:-3}
       - LLM_TIMEOUT=${LLM_TIMEOUT:-60}
+      - ALLOW_MOCK_VIRUS_SCANNER=${ALLOW_MOCK_VIRUS_SCANNER:-true}
       - LANGFUSE_HOST=http://langfuse:3000
     depends_on:
       postgres:

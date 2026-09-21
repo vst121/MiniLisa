@@ -10,6 +10,7 @@ from fastapi import HTTPException, UploadFile
 from src.api.deps import get_current_user
 from src.auth.jwt import create_access_token, decode_access_token, get_password_hash, verify_password
 from src.auth.security import validate_upload_file
+from src.config.settings import settings
 
 
 def test_jwt_token_flow():
@@ -76,3 +77,17 @@ async def test_validate_upload_file_virus():
         await validate_upload_file(file)
     assert exc_info.value.status_code == 422
     assert "Malware detected" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_validate_upload_file_fails_closed_without_scanner():
+    original_value = settings.ALLOW_MOCK_VIRUS_SCANNER
+    settings.ALLOW_MOCK_VIRUS_SCANNER = False
+    try:
+        file = UploadFile(filename="invoice.pdf", file=BytesIO(b"%PDF-1.4 content"))
+        with pytest.raises(HTTPException) as exc_info:
+            await validate_upload_file(file)
+        assert exc_info.value.status_code == 503
+        assert "scanner is not configured" in exc_info.value.detail
+    finally:
+        settings.ALLOW_MOCK_VIRUS_SCANNER = original_value
