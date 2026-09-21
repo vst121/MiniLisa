@@ -47,6 +47,10 @@ async def test_erp_connector_tool():
     assert res["success"] is True
     assert "ERP-REF-" in res["erp_reference_code"]
 
+    duplicate = await tool.run(invoice_id="inv-100", supplier_id="sup-1", amount=500.0)
+    assert duplicate["status"] == "ALREADY_POSTED"
+    assert duplicate["erp_reference_code"] == res["erp_reference_code"]
+
 
 @pytest.mark.asyncio
 async def test_email_sender_tool():

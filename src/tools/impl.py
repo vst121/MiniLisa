@@ -176,17 +176,34 @@ class ERPConnectorTool(BaseTool):
         "Integrates with enterprise ERP system (SAP/NetSuite mock) to post approved invoices."
     )
     args_schema = ERPConnectorInput
+    _posted_invoices: dict[str, str] = {}
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         invoice_id = kwargs.get("invoice_id")
         amount = kwargs.get("amount")
+        existing_reference = self._posted_invoices.get(invoice_id)
+        if existing_reference:
+            logger.info(
+                "[ERPConnectorTool] Invoice %s already posted as %s",
+                invoice_id,
+                existing_reference,
+            )
+            return {
+                "success": True,
+                "erp_reference_code": existing_reference,
+                "status": "ALREADY_POSTED",
+                "message": "Invoice was already posted to SAP Accounts Payable queue.",
+            }
+
+        erp_reference = f"ERP-REF-{invoice_id[:8].upper()}"
+        self._posted_invoices[invoice_id] = erp_reference
         logger.info(
             f"[ERPConnectorTool] Posting invoice {invoice_id} of amount ${amount} to fake ERP"
         )
 
         return {
             "success": True,
-            "erp_reference_code": f"ERP-REF-{invoice_id[:8].upper()}",
+            "erp_reference_code": erp_reference,
             "status": "POSTED_SUCCESSFULLY",
             "message": "Invoice posted to SAP Accounts Payable queue.",
         }

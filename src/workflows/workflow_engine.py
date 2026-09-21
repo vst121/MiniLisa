@@ -344,11 +344,14 @@ class WorkflowEngine:
         invoice_id = event.payload.get("invoice_id") or getattr(event, "invoice_id", "")
         action_taken = event.payload.get("action") or getattr(event, "action", "APPROVE")
         user_id = event.payload.get("user_id") or getattr(event, "user_id", "human_user")
+        checkpoint = self.get_checkpoint(invoice_id)
+        if checkpoint and checkpoint.status == InvoiceStatus.COMPLETED:
+            logger.info("[WORKFLOW] Ignoring duplicate approval for completed invoice %s", invoice_id)
+            return
 
         logger.info(
             f"▶️ [WORKFLOW RESUMED] Received Human Approval ({action_taken}) for invoice: {invoice_id}"
         )
-        checkpoint = self.get_checkpoint(invoice_id)
         state_data = checkpoint.state_data if checkpoint else {}
 
         await self.audit_tool.run(
