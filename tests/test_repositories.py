@@ -10,6 +10,7 @@ from src.models.invoice import InvoiceModel
 from src.models.supplier import SupplierModel
 from src.repositories.invoice_repository import InvoiceRepository
 from src.repositories.supplier_repository import SupplierRepository
+from src.repositories.outbox_repository import OutboxRepository
 
 
 @pytest.fixture
@@ -64,3 +65,26 @@ async def test_supplier_repository_tax_lookup(async_session: AsyncSession):
     assert found is not None
     assert found.name == "Global Tech Ltd"
     assert found.risk_score == 10.0
+
+
+@pytest.mark.asyncio
+async def test_outbox_repository_enqueue_publish_and_failure(async_session: AsyncSession):
+    repo = OutboxRepository(async_session)
+    event = await repo.enqueue(
+        {
+            "event_id": "evt-outbox-1",
+            "event_type": "InvoiceUploaded",
+            "correlation_id": "corr-outbox-1",
+            "payload": {"invoice_id": "inv-outbox-1"},
+        }
+    )
+
+    pending = await repo.get_pending()
+    assert [item.event_id for item in pending] == [event.event_id]
+
+    await repo.mark_failed(event, "temporary publish failure")
+    assert event.attempts == 1
+    assert event.last_error == "temporary publish failure"
+
+    await repo.mark_published(event)
+    assert await repo.get_pending() == []
