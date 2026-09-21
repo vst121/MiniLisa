@@ -65,6 +65,8 @@ class Settings(BaseSettings):
                 raise ValueError("CORS_ALLOW_ORIGINS cannot contain '*' in production")
             if self.ALLOW_MOCK_VIRUS_SCANNER:
                 raise ValueError("ALLOW_MOCK_VIRUS_SCANNER must be false in production")
+            if self.AUTO_CREATE_TABLES:
+                raise ValueError("AUTO_CREATE_TABLES must be false in production; run migrations instead")
         return self
 
     # Database Settings (PostgreSQL + pgvector)
@@ -74,6 +76,7 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = "procurement_pass"
     POSTGRES_DB: str = "procurement_ai_db"
     DATABASE_URL: str | None = None
+    AUTO_CREATE_TABLES: bool = True
 
     @computed_field  # type: ignore[prop-decorator]
     @property

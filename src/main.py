@@ -26,9 +26,11 @@ async def lifespan(app: FastAPI):
     # Create upload directory
     settings.create_upload_dir()
 
-    # Initialize DB tables (for dev/testing)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    if settings.AUTO_CREATE_TABLES:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    else:
+        logger.info("Automatic table creation disabled; database migrations must run before startup.")
 
     # Register workflow subscribers to event bus
     workflow_engine = get_workflow_engine()

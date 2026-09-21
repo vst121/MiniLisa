@@ -17,6 +17,7 @@ services:
       - POSTGRES_USER=procurement_user
       - POSTGRES_PASSWORD=procurement_pass
       - POSTGRES_DB=procurement_ai_db
+      - AUTO_CREATE_TABLES=${AUTO_CREATE_TABLES:-true}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - EVENT_BUS_TYPE=redis

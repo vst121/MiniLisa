@@ -50,3 +50,17 @@ def test_production_settings_reject_disabled_authentication() -> None:
         assert "REQUIRE_AUTHENTICATION" in str(exc)
     else:
         raise AssertionError("Disabled production authentication should be rejected")
+
+
+def test_production_settings_reject_auto_create_tables() -> None:
+    try:
+        Settings(
+            ENV="production",
+            SECRET_KEY="a" * 32,
+            ALLOW_MOCK_VIRUS_SCANNER=False,
+            AUTO_CREATE_TABLES=True,
+        )
+    except ValidationError as exc:
+        assert "AUTO_CREATE_TABLES" in str(exc)
+    else:
+        raise AssertionError("Production auto table creation should be rejected")
