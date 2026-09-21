@@ -4,6 +4,7 @@ Executes document processing, agent pipeline, state checkpointing, pause/resume,
 """
 
 import json
+import sqlite3
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 import logging
@@ -54,7 +55,8 @@ class WorkflowEngine:
     def __init__(self, event_bus: Optional[EventBus] = None) -> None:
         self.event_bus = event_bus or get_event_bus()
         self.checkpoints: Dict[str, WorkflowCheckpoint] = {}
-        self.checkpoint_path = settings.WORKFLOW_CHECKPOINT_DIR / "workflow_checkpoints.json"
+        self.checkpoint_path = settings.WORKFLOW_CHECKPOINT_DIR / "workflow_checkpoints.sqlite3"
+        self._initialize_checkpoint_store()
         self._load_checkpoints()
 
         # Instantiate agents
@@ -68,48 +70,46 @@ class WorkflowEngine:
         self.erp_tool = ERPConnectorTool()
         self.audit_tool = StoreAuditTool()
 
-    def _load_checkpoints(self) -> None:
-        """Restore workflow checkpoints from disk so the process is not the only source of truth."""
-        if not self.checkpoint_path.exists():
-            self.checkpoints = {}
-            return
+    def _initialize_checkpoint_store(self) -> None:
+        """Create the durable checkpoint table when the workflow engine starts."""
+        self.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(self.checkpoint_path) as connection:
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS workflow_checkpoints (
+                    invoice_id TEXT PRIMARY KEY,
+                    current_step TEXT NOT NULL,
+                    state_data TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
 
+    def _load_checkpoints(self) -> None:
+        """Restore checkpoints from SQLite so process memory is not the source of truth."""
         try:
-            payload = json.loads(self.checkpoint_path.read_text(encoding="utf-8"))
-            checkpoints = payload.get("checkpoints", {})
+            with sqlite3.connect(self.checkpoint_path) as connection:
+                rows = connection.execute(
+                    "SELECT invoice_id, current_step, state_data, status, updated_at "
+                    "FROM workflow_checkpoints"
+                ).fetchall()
             self.checkpoints = {
                 invoice_id: WorkflowCheckpoint(
-                    invoice_id=item["invoice_id"],
-                    current_step=item["current_step"],
-                    state_data=item.get("state_data", {}),
-                    status=InvoiceStatus(item["status"]),
-                    updated_at=datetime.fromisoformat(item["updated_at"]),
+                    invoice_id=invoice_id,
+                    current_step=current_step,
+                    state_data=json.loads(state_data),
+                    status=InvoiceStatus(status),
+                    updated_at=datetime.fromisoformat(updated_at),
                 )
-                for invoice_id, item in checkpoints.items()
+                for invoice_id, current_step, state_data, status, updated_at in rows
             }
-        except (json.JSONDecodeError, TypeError, ValueError, KeyError):
-            logger.warning("Checkpoint file was unreadable; starting with empty checkpoint set.")
+        except (json.JSONDecodeError, TypeError, ValueError, sqlite3.Error) as exc:
+            logger.warning("Checkpoint store was unreadable; starting with empty checkpoint set: %s", exc)
             self.checkpoints = {}
 
-    def _persist_checkpoints(self) -> None:
-        """Persist checkpoints to durable JSON storage for local production-safe recovery."""
-        payload = {
-            "checkpoints": {
-                invoice_id: {
-                    "invoice_id": cp.invoice_id,
-                    "current_step": cp.current_step,
-                    "state_data": cp.state_data,
-                    "status": cp.status.value,
-                    "updated_at": cp.updated_at.isoformat(),
-                }
-                for invoice_id, cp in self.checkpoints.items()
-            }
-        }
-        self.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-        self.checkpoint_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
-
     def save_checkpoint(self, invoice_id: str, step: str, state_data: Dict[str, Any], status: InvoiceStatus) -> None:
-        """Save step checkpoint snapshot and persist it to disk."""
+        """Save a checkpoint in memory and persist it transactionally to SQLite."""
         logger.info(f"💾 [CHECKPOINT] Invoice '{invoice_id}' at step '{step}' with status '{status.value}'")
         checkpoint = WorkflowCheckpoint(
             invoice_id=invoice_id,
@@ -118,7 +118,26 @@ class WorkflowEngine:
             status=status,
         )
         self.checkpoints[invoice_id] = checkpoint
-        self._persist_checkpoints()
+        with sqlite3.connect(self.checkpoint_path) as connection:
+            connection.execute(
+                """
+                INSERT INTO workflow_checkpoints
+                    (invoice_id, current_step, state_data, status, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(invoice_id) DO UPDATE SET
+                    current_step = excluded.current_step,
+                    state_data = excluded.state_data,
+                    status = excluded.status,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    checkpoint.invoice_id,
+                    checkpoint.current_step,
+                    json.dumps(checkpoint.state_data, default=str),
+                    checkpoint.status.value,
+                    checkpoint.updated_at.isoformat(),
+                ),
+            )
 
     def get_checkpoint(self, invoice_id: str) -> Optional[WorkflowCheckpoint]:
         """Retrieve stored checkpoint snapshot."""

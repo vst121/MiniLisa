@@ -37,6 +37,7 @@ services:
         condition: service_healthy
     volumes:
       - ./storage/uploads:/app/storage/uploads
+      - ./storage/checkpoints:/app/storage/checkpoints
     restart: unless-stopped
 
   # 2. PostgreSQL with pgvector extension
