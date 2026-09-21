@@ -34,11 +34,17 @@ services:
       - LLM_MAX_RETRIES=${LLM_MAX_RETRIES:-3}
       - LLM_TIMEOUT=${LLM_TIMEOUT:-60}
       - ALLOW_MOCK_VIRUS_SCANNER=${ALLOW_MOCK_VIRUS_SCANNER:-true}
+      - VIRUS_SCANNER_TYPE=${VIRUS_SCANNER_TYPE:-mock}
+      - CLAMAV_HOST=clamd
+      - CLAMAV_PORT=3310
+      - CLAMAV_TIMEOUT_SECONDS=${CLAMAV_TIMEOUT_SECONDS:-10.0}
       - LANGFUSE_HOST=http://langfuse:3000
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      clamd:
         condition: service_healthy
     volumes:
       - ./storage/uploads:/app/storage/uploads
@@ -123,7 +129,23 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # 4. Redis & Redis Streams Event Bus
+  # 5. ClamAV Malware Scanner Daemon
+  clamd:
+    image: clamav/clamav:stable
+    container_name: procurement_ai_clamd
+    ports:
+      - "3310:3310"
+    volumes:
+      - clamav_data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "netstat -tln | grep -q 3310 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # 6. Redis & Redis Streams Event Bus
   redis:
     image: redis:7-alpine
     container_name: procurement_ai_redis
@@ -140,7 +162,6 @@ services:
 
   # 5. Langfuse LLM Observability
   langfuse:
-    image: langfuse/langfuse:2
     container_name: procurement_ai_langfuse
     ports:
       - "3000:3000"
@@ -157,3 +178,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  clamav_data:

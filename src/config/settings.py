@@ -105,6 +105,12 @@ class Settings(BaseSettings):
     REDIS_CONSUMER_NAME: str = "worker-1"
     REDIS_STREAM_BLOCK_MS: int = 5000
 
+    # Virus scanning (ClamAV / clamd)
+    VIRUS_SCANNER_TYPE: Literal["mock", "clamd"] = "mock"
+    CLAMAV_HOST: str = "clamd"
+    CLAMAV_PORT: int = 3310
+    CLAMAV_TIMEOUT_SECONDS: float = 10.0
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def REDIS_URI(self) -> str:

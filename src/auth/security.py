@@ -32,6 +32,19 @@ class MockClamAVScanner(VirusScanner):
         return True, "CLEAN"
 
 
+def get_virus_scanner() -> VirusScanner:
+    """Factory returning the configured VirusScanner implementation."""
+    if settings.VIRUS_SCANNER_TYPE == "clamd":
+        from src.infrastructure.virus_scanner import ClamAVScanner
+
+        return ClamAVScanner(
+            host=settings.CLAMAV_HOST,
+            port=settings.CLAMAV_PORT,
+            timeout=settings.CLAMAV_TIMEOUT_SECONDS,
+        )
+    return MockClamAVScanner()
+
+
 async def validate_upload_file(
     file: UploadFile,
     virus_scanner: VirusScanner | None = None,
@@ -43,12 +56,13 @@ async def validate_upload_file(
     3. PDF magic byte header check (%PDF-)
     4. Virus scan check
     """
-    if virus_scanner is None and not settings.ALLOW_MOCK_VIRUS_SCANNER:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Malware scanner is not configured.",
-        )
-    scanner = virus_scanner or MockClamAVScanner()
+    if virus_scanner is None:
+        if settings.VIRUS_SCANNER_TYPE == "mock" and not settings.ALLOW_MOCK_VIRUS_SCANNER:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Mock virus scanner is disabled; configure a real scanner (VIRUS_SCANNER_TYPE=clamd).",
+            )
+        virus_scanner = get_virus_scanner()
 
     # 1. File extension validation
     filename = file.filename or "unknown.pdf"
@@ -84,7 +98,7 @@ async def validate_upload_file(
         )
 
     # 4. Virus scan clearance
-    is_clean, scan_msg = await scanner.scan_bytes(content, filename)
+    is_clean, scan_msg = await virus_scanner.scan_bytes(content, filename)
     if not is_clean:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

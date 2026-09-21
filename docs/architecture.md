@@ -63,11 +63,11 @@ The workflow checkpoints each successful phase with an `InvoiceStatus`. The prim
 - **Filesystem volume:** uploaded PDFs are stored under `storage/uploads` in the reference deployment.
 - **Workflow checkpoint:** held in a `dict` by the current `WorkflowEngine` process. It is intentionally not a durable store yet.
 
-The API writes the upload record before publishing its workflow event. Production deployments should use an outbox pattern or equivalent transaction/event coordination to prevent a committed invoice with a missed event.
+The API writes the upload record before publishing its workflow event. Production deployments should use an outbox pattern or equivalent transaction/event coordination to prevent a committed invoice with a missed event. A dedicated outbox publisher worker (`python -m src.outbox_worker`) drains the `outbox_events` table and publishes pending records to the configured EventBus.
 
 ## Security model
 
-The upload service enforces extension allow-listing, byte size, a `%PDF-` header, and a scanner port. JWT utilities create and verify signed access tokens, and protected routes accept Bearer tokens.
+The upload service enforces extension allow-listing, byte size, a `%PDF-` header, and a virus scan via a pluggable `VirusScanner` adapter. `VIRUS_SCANNER_TYPE=mock` uses `MockClamAVScanner` (EICAR-only) for development and tests; `VIRUS_SCANNER_TYPE=clamd` uses `ClamAVScanner`, which speaks the clamd INSTREAM protocol over TCP and is fail-closed — an unreachable daemon or scan error rejects the upload. In production set `VIRUS_SCANNER_TYPE=clamd` and `ALLOW_MOCK_VIRUS_SCANNER=false`.
 
 The application requires a valid JWT for protected endpoints by default, and CORS is restricted to an allow-list instead of `*`. This is the secure baseline for production use; local/demo overrides are available only when explicitly disabled in settings and not left on by default. See the hardening checklist in the [README](../README.md#production-hardening).
 

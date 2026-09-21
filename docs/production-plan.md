@@ -30,6 +30,7 @@ Prepare the application for a safe production handoff and future deployment whil
 - Keep CORS restricted to an allow-list, never `*` in production.
 - Store runtime secrets in a proper secret manager, not in committed files.
 - Keep upload validation active: extension check, size check, header validation, malware scan integration, and quarantine workflow.
+  - The scanner is pluggable via `VIRUS_SCANNER_TYPE`: `mock` (EICAR-only, dev/test) or `clamd` (real ClamAV over TCP, fail-closed). Production must use `clamd` with `ALLOW_MOCK_VIRUS_SCANNER=false`.
 
 ### 3. Data and workflow durability
 

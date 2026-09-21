@@ -14,7 +14,12 @@ from src.auth.jwt import (
     get_password_hash,
     verify_password,
 )
-from src.auth.security import validate_upload_file
+from src.auth.security import (
+    MockClamAVScanner,
+    VirusScanner,
+    get_virus_scanner,
+    validate_upload_file,
+)
 from src.config.settings import settings
 
 
@@ -93,6 +98,137 @@ async def test_validate_upload_file_fails_closed_without_scanner():
         with pytest.raises(HTTPException) as exc_info:
             await validate_upload_file(file)
         assert exc_info.value.status_code == 503
-        assert "scanner is not configured" in exc_info.value.detail
+        assert "scanner" in exc_info.value.detail.lower()
     finally:
         settings.ALLOW_MOCK_VIRUS_SCANNER = original_value
+
+
+@pytest.mark.asyncio
+async def test_get_virus_scanner_returns_clamd_when_configured():
+    original_value = settings.VIRUS_SCANNER_TYPE
+    settings.VIRUS_SCANNER_TYPE = "clamd"
+    try:
+        from src.infrastructure.virus_scanner import ClamAVScanner
+
+        scanner = get_virus_scanner()
+        assert isinstance(scanner, ClamAVScanner)
+        assert scanner.host == settings.CLAMAV_HOST
+        assert scanner.port == settings.CLAMAV_PORT
+    finally:
+        settings.VIRUS_SCANNER_TYPE = original_value
+
+
+@pytest.mark.asyncio
+async def test_get_virus_scanner_returns_mock_by_default():
+    scanner = get_virus_scanner()
+    assert isinstance(scanner, MockClamAVScanner)
+
+
+@pytest.mark.asyncio
+async def test_clamav_scanner_accepts_clean_file():
+    from src.infrastructure.virus_scanner import ClamAVScanner
+
+    class FakeWriter:
+        def __init__(self):
+            self.written = bytearray()
+
+        def write(self, data):
+            self.written.extend(data)
+
+        async def drain(self):
+            pass
+
+        def close(self):
+            pass
+
+        async def wait_closed(self):
+            pass
+
+    class FakeReader:
+        async def read(self, _n):
+            return b"stream: OK"
+
+    scanner = ClamAVScanner(host="clamd", port=3310)
+
+    async def fake_open_connection(host, port):
+        scanner._last_writer = FakeWriter()
+        return FakeReader(), scanner._last_writer
+
+    import src.infrastructure.virus_scanner as vs
+
+    original = vs.asyncio.open_connection
+    vs.asyncio.open_connection = fake_open_connection
+    try:
+        is_clean, msg = await scanner.scan_bytes(b"%PDF-1.4 clean", "invoice.pdf")
+    finally:
+        vs.asyncio.open_connection = original
+
+    assert is_clean is True
+    assert msg == "CLEAN"
+    # INSTREAM command must have been sent.
+    assert b"INSTREAM" in scanner._last_writer.written
+
+
+@pytest.mark.asyncio
+async def test_clamav_scanner_rejects_infected_file():
+    from src.infrastructure.virus_scanner import ClamAVScanner
+
+    class FakeWriter:
+        def __init__(self):
+            self.written = bytearray()
+
+        def write(self, data):
+            self.written.extend(data)
+
+        async def drain(self):
+            pass
+
+        def close(self):
+            pass
+
+        async def wait_closed(self):
+            pass
+
+    class FakeReader:
+        async def read(self, _n):
+            return b"stream: /tmp/infected.pdf: Win32.Eicar-Test-File FOUND"
+
+    scanner = ClamAVScanner(host="clamd", port=3310)
+
+    async def fake_open_connection(host, port):
+        scanner._last_writer = FakeWriter()
+        return FakeReader(), scanner._last_writer
+
+    import src.infrastructure.virus_scanner as vs
+
+    original = vs.asyncio.open_connection
+    vs.asyncio.open_connection = fake_open_connection
+    try:
+        is_clean, msg = await scanner.scan_bytes(b"%PDF-1.4 EICAR-STANDARD-ANTIVIRUS-TEST-FILE", "infected.pdf")
+    finally:
+        vs.asyncio.open_connection = original
+
+    assert is_clean is False
+    assert "Win32.Eicar-Test-File" in msg
+
+
+@pytest.mark.asyncio
+async def test_clamav_scanner_fails_closed_when_daemon_unreachable():
+    from src.infrastructure.virus_scanner import ClamAVScanner
+
+    scanner = ClamAVScanner(host="nonexistent-clamd", port=3310, timeout=0.5)
+
+    async def fake_open_connection(host, port):
+        raise OSError("connection refused")
+
+    import src.infrastructure.virus_scanner as vs
+
+    original = vs.asyncio.open_connection
+    vs.asyncio.open_connection = fake_open_connection
+    try:
+        is_clean, msg = await scanner.scan_bytes(b"%PDF-1.4 content", "invoice.pdf")
+    finally:
+        vs.asyncio.open_connection = original
+
+    assert is_clean is False
+    assert "scanner unavailable" in msg

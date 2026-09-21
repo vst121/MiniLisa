@@ -119,6 +119,17 @@ Copy `.env.example` to `.env`; the most important settings are:
 | `MAX_UPLOAD_SIZE_MB`, `ALLOWED_FILE_TYPES`  | Upload validation policy                                            |
 | `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT signing and expiry                                              |
 | `ENABLE_TELEMETRY`, `LANGFUSE_*`            | Telemetry configuration                                             |
+| `VIRUS_SCANNER_TYPE`                        | `mock` for dev/test, `clamd` for real ClamAV scanning               |
+| `CLAMAV_HOST`, `CLAMAV_PORT`, `CLAMAV_TIMEOUT_SECONDS` | clamd TCP endpoint used by the ClamAV scanner adapter |
+
+### Malware scanning
+
+The upload path uses a `VirusScanner` adapter interface. `VIRUS_SCANNER_TYPE=mock` runs
+`MockClamAVScanner`, which only recognises the EICAR test signature and is intended for
+local development and tests. `VIRUS_SCANNER_TYPE=clamd` runs `ClamAVScanner`, which
+talks to a `clamd` daemon over TCP using the INSTREAM protocol and is fail-closed: any
+unreachable daemon or scan error rejects the upload. In the Compose stack the `clamd`
+service runs `clamav/clamav:stable` on port 3310 and the web container depends on it.
 
 Never commit `.env`, real API keys, or production signing keys. Rotate any secret that has been exposed.
 
@@ -163,7 +174,7 @@ src/
   config/          Environment-backed settings
   domain/          Entities, value objects, and domain events
   events/          Event-bus ports and adapters
-  infrastructure/  Database, LLM, and PDF adapters
+  infrastructure/  Database, LLM, PDF, and ClamAV adapters
   models/          SQLAlchemy ORM models
   repositories/    Persistence repositories
   schemas/         API and structured-output contracts
