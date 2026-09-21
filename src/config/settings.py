@@ -85,11 +85,13 @@ class Settings(BaseSettings):
         auth = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
         return f"redis://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
-    # LLM Settings (LiteLLM)
-    OPENAI_API_KEY: str = ""
-    LLM_MODEL: str = "ollama_chat/llama3.1:8b"
-    EMBEDDING_MODEL: str = "ollama/nomic-embed-text"
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    # OpenRouter LLM settings
+    LLM_PROVIDER: str = "openrouter"
+    LLM_MODEL: str = "google/gemma-4-26b-a4b-it:free"
+    EMBEDDING_MODEL: str = "openai/text-embedding-3-small"
+    LLM_BASE_URL: str = "https://openrouter.ai/api/v1"
+    LLM_API_KEY: str = ""
+    LLM_MAX_TOKENS: int = 4096
     LLM_MAX_RETRIES: int = 3
     LLM_TIMEOUT: float = 60.0
 

@@ -1,7 +1,4 @@
-"""
-LLM Service Adapter using LiteLLM.
-Enforces Pydantic structured outputs on all LLM calls.
-"""
+"""OpenRouter-backed LLM adapter using LiteLLM."""
 
 import json
 import logging
@@ -16,11 +13,12 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class LLMClient:
-    """LiteLLM Async Adapter enforcing structured outputs and tracking costs."""
+    """Async adapter enforcing structured outputs for OpenRouter models."""
 
     def __init__(self, model_name: str | None = None, api_key: str | None = None):
         self.model_name = model_name or settings.LLM_MODEL
-        self.api_key = api_key or settings.OPENAI_API_KEY
+        self.api_key = api_key or settings.LLM_API_KEY
+        self.api_base = settings.LLM_BASE_URL
         self.embedding_model = settings.EMBEDDING_MODEL
 
     async def generate_structured(
@@ -39,7 +37,10 @@ class LLMClient:
                 messages=messages,
                 response_format=response_schema,
                 temperature=temperature,
+                max_tokens=settings.LLM_MAX_TOKENS,
                 api_key=self.api_key,
+                api_base=self.api_base,
+                custom_llm_provider=settings.LLM_PROVIDER,
                 timeout=settings.LLM_TIMEOUT,
             )
             content = response.choices[0].message.content
@@ -64,7 +65,10 @@ class LLMClient:
                 messages=messages_copy,
                 response_format={"type": "json_object"},
                 temperature=temperature,
+                max_tokens=settings.LLM_MAX_TOKENS,
                 api_key=self.api_key,
+                api_base=self.api_base,
+                custom_llm_provider=settings.LLM_PROVIDER,
                 timeout=settings.LLM_TIMEOUT,
             )
             content = response.choices[0].message.content
@@ -77,6 +81,8 @@ class LLMClient:
                 model=self.embedding_model,
                 input=[text],
                 api_key=self.api_key,
+                api_base=self.api_base,
+                custom_llm_provider=settings.LLM_PROVIDER,
             )
             return response.data[0]["embedding"]
         except Exception as e:

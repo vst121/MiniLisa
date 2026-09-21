@@ -115,7 +115,7 @@ Copy `.env.example` to `.env`; the most important settings are:
 | ------------------------------------------- | ------------------------------------------------------------------- |
 | `DATABASE_URL` or `POSTGRES_*`              | Async PostgreSQL connection settings                                |
 | `EVENT_BUS_TYPE`                            | `memory` for local process execution, `redis` for the Redis adapter |
-| `OPENAI_API_KEY`, `LLM_MODEL`               | LiteLLM provider credentials and model                              |
+| `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`  | OpenRouter credentials, model, and API endpoint                     |
 | `MAX_UPLOAD_SIZE_MB`, `ALLOWED_FILE_TYPES`  | Upload validation policy                                            |
 | `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT signing and expiry                                              |
 | `ENABLE_TELEMETRY`, `LANGFUSE_*`            | Telemetry configuration                                             |

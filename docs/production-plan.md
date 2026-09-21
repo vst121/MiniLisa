@@ -2,26 +2,26 @@
 
 ## Goal
 
-Prepare the application for a safe production handoff and future deployment while keeping local development usable on Python 3.12 and a local Ollama-backed model setup.
+Prepare the application for a safe production handoff and future deployment while keeping local development usable on Python 3.12 and an OpenRouter-backed model setup.
 
 ## Current baseline
 
 - Python target: 3.12
 - App stack: FastAPI + SQLAlchemy + Redis + LiteLLM
-- Local AI model path: Ollama via LiteLLM model names such as `ollama_chat/llama3.1:8b` and `ollama/nomic-embed-text`
+- AI model path: OpenRouter via the LiteLLM adapter and configurable OpenRouter model names
 - The repo is intended to be GitHub-ready and continues from another station without requiring a full environment rebuild
 
 ## Immediate production actions
 
 ### 1. Model and AI configuration
 
-- Use Ollama as the default local model provider for development and staging.
-- Do not rely on OpenAI API keys in local setups unless explicitly configured.
+- Use OpenRouter as the default model provider for development and staging.
+- Store the OpenRouter API key in `.env` or a secret manager; never commit it.
 - Add explicit model health checks for:
   - chat model availability,
   - embedding model availability,
   - timeouts and retry budgets,
-  - fallback behavior when Ollama is unreachable.
+  - fallback behavior when OpenRouter is unreachable.
 
 ### 2. Security hardening
 
@@ -61,7 +61,7 @@ Prepare the application for a safe production handoff and future deployment whil
 
 ## Recommended rollout order
 
-1. Stabilize local config and model connectivity with Ollama.
+1. Stabilize local config and model connectivity with OpenRouter.
 2. Enforce auth and secure defaults.
 3. Persist checkpoints and event outbox.
 4. Add observability and retries.
@@ -71,24 +71,20 @@ Prepare the application for a safe production handoff and future deployment whil
 ## Handover notes for the next station
 
 - The project is intentionally left in a GitHub-safe state, not a live-production deployment state.
-- The next station should focus on: durable workflow storage, production deployment configuration, and Ollama connectivity validation.
+- The next station should focus on: durable workflow storage, production deployment configuration, and OpenRouter connectivity validation.
 - Before production release, review environment variables and secret rotation for all non-local credentials.
 
-## Local Ollama configuration
+## OpenRouter configuration
 
 Example environment settings for local development:
 
 ```env
-OPENAI_API_KEY=
-LLM_MODEL=ollama_chat/llama3.1:8b
-EMBEDDING_MODEL=ollama/nomic-embed-text
-OLLAMA_BASE_URL=http://localhost:11434
-```
-
-Confirm the model is available with:
-
-```bash
-curl http://localhost:11434/api/tags
+LLM_PROVIDER=openrouter
+LLM_MODEL=google/gemma-4-26b-a4b-it:free
+EMBEDDING_MODEL=openai/text-embedding-3-small
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_KEY=your-openrouter-api-key
+LLM_MAX_TOKENS=4096
 ```
 
 ## Exit criteria for the next phase
@@ -96,7 +92,7 @@ curl http://localhost:11434/api/tags
 The next phase is ready when all of the following are true:
 
 - API starts without demo auth fallback,
-- local Ollama chat and embedding endpoints are reachable,
+- OpenRouter chat and embedding endpoints are reachable,
 - workflow state persists across restarts,
 - queue/event reliability is implemented,
 - CI tests pass in the chosen environment,
