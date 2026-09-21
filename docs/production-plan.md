@@ -1,4 +1,4 @@
- # Production readiness plan for MiniLisa
+# Production readiness plan for MiniLisa
 
 ## Goal
 
@@ -49,6 +49,7 @@ Prepare the application for a safe production handoff and future deployment whil
 ### 5. Data model and migrations
 
 - Use Alembic migrations for schema changes instead of relying on `create_all()` in startup.
+- Apply the checked-in initial revision with `alembic upgrade head` before production startup.
 - Add backup and restore validation procedures.
 - Define retention policies for invoices, audit logs, and uploaded artifacts.
 

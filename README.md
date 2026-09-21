@@ -134,6 +134,15 @@ ruff check src tests
 
 `pytest` is configured to report missing coverage and require known markers. The async SQLite driver used by repository tests is included in the `dev` dependency group.
 
+## Database migrations
+
+Development can use `AUTO_CREATE_TABLES=true`. Production must set it to `false` and apply the schema before starting the API:
+
+```powershell
+$env:DATABASE_URL="postgresql+asyncpg://user:password@host:5432/database"
+alembic upgrade head
+```
+
 ## Project layout
 
 ```text
