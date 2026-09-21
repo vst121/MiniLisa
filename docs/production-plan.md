@@ -1,4 +1,4 @@
-# Production readiness plan for MiniLisa
+ # Production readiness plan for MiniLisa
 
 ## Goal
 
